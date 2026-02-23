@@ -13,6 +13,7 @@
   "build": {
     "appId": "com.livedashboard.app",
     "productName": "直播数据大屏",
+    "artifactName": "live-dashboard-${version}-${arch}.${ext}",
     "directories": {
       "output": "release"
     },
