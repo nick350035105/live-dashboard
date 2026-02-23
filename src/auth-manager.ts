@@ -102,7 +102,7 @@ export class AuthManager {
 
   // 等待代理商登录（使用 BrowserWindow + executeJavaScript 替代 page.evaluate）
   async waitForAgentLogin(win: BrowserWindow, ses: Electron.Session): Promise<boolean> {
-    const agentUrl = 'https://agent.oceanengine.com/admin/homepage';
+    const agentUrl = 'https://agent.oceanengine.com/login';
     console.log(`\n请在浏览器中登录代理商后台...`);
     console.log(`正在打开: ${agentUrl}\n`);
 
