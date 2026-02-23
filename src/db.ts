@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import * as path from 'path';
+import { app } from 'electron';
 
 // 自定义 Cookie 接口，替代 Playwright 的 Cookie 类型
 export interface CookieData {
@@ -39,7 +40,7 @@ class DatabaseManager {
   private db: Database.Database;
 
   constructor() {
-    const dbPath = path.join(__dirname, '../data.db');
+    const dbPath = path.join(app.getPath('userData'), 'data.db');
     this.db = new Database(dbPath);
     this.init();
   }
@@ -140,4 +141,17 @@ class DatabaseManager {
   }
 }
 
-export const db = new DatabaseManager();
+let _db: DatabaseManager | null = null;
+
+export function getDb(): DatabaseManager {
+  if (!_db) {
+    _db = new DatabaseManager();
+  }
+  return _db;
+}
+
+export const db = new Proxy({} as DatabaseManager, {
+  get(_target, prop) {
+    return (getDb() as any)[prop];
+  }
+});
