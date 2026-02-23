@@ -1,0 +1,1805 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>直播大屏</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: radial-gradient(circle at 15% 50%, rgba(20, 26, 46, 1), transparent 50%), radial-gradient(circle at 85% 30%, rgba(15, 34, 59, 1), transparent 50%), linear-gradient(135deg, #0b0f19 0%, #111827 100%);
+      background-attachment: fixed;
+      min-height: 100vh;
+      color: #e2e8f0;
+      display: flex;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* === 侧边栏 === */
+    .sidebar {
+      width: 240px;
+      min-width: 240px;
+      background: rgba(15, 23, 42, 0.4);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-right: 1px solid rgba(255, 255, 255, 0.05);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      position: sticky;
+      top: 0;
+      box-shadow: 4px 0 24px rgba(0, 0, 0, 0.2);
+      z-index: 10;
+    }
+
+    .sidebar-header {
+      padding: 20px 16px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .sidebar-header h2 {
+      font-size: 15px;
+      color: rgba(255, 255, 255, 0.6);
+      font-weight: 500;
+      margin-bottom: 12px;
+    }
+
+    .sidebar-search {
+      width: 100%;
+      padding: 8px 12px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid transparent;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 13px;
+      outline: none;
+      transition: all 0.3s ease;
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+    }
+
+    .sidebar-search:focus {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(0, 212, 255, 0.4);
+      box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.15), inset 0 1px 2px rgba(0, 0, 0, 0.2);
+    }
+
+    .sidebar-search::placeholder {
+      color: rgba(255, 255, 255, 0.3);
+    }
+
+    .account-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 0;
+    }
+
+    .account-item {
+      padding: 10px 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      border-left: 2px solid transparent;
+    }
+
+    .account-item:hover {
+      background: rgba(255, 255, 255, 0.06);
+      transform: translateX(2px);
+    }
+
+    .account-item.active {
+      background: linear-gradient(90deg, rgba(0, 212, 255, 0.15) 0%, transparent 100%);
+      border-left-color: #00d4ff;
+    }
+
+    .account-item.all-item {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      margin-bottom: 4px;
+    }
+
+    .account-status {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .account-status.valid {
+      background: #2ecc71;
+    }
+
+    .account-status.invalid {
+      background: #e74c3c;
+    }
+
+    .account-status.authorizing {
+      background: #f39c12;
+      animation: pulse-dot 1.5s infinite;
+    }
+
+    .account-status.unknown {
+      background: #636e72;
+    }
+
+    @keyframes pulse-dot {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.3;
+      }
+    }
+
+    .account-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .account-name {
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .account-id {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.4);
+      margin-top: 2px;
+    }
+
+    .account-badge {
+      font-size: 11px;
+      background: rgba(0, 212, 255, 0.2);
+      color: #00d4ff;
+      padding: 2px 6px;
+      border-radius: 10px;
+      flex-shrink: 0;
+    }
+
+    .account-delete {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 22px;
+      height: 22px;
+      border-radius: 4px;
+      background: rgba(231, 76, 60, 0.2);
+      color: #e74c3c;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    }
+
+    .account-item:hover .account-delete {
+      display: flex;
+    }
+
+    .account-item:hover .account-badge {
+      display: none;
+    }
+
+    .sidebar-footer {
+      padding: 12px 16px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .add-btn {
+      width: 100%;
+      padding: 8px;
+      background: rgba(0, 212, 255, 0.15);
+      border: 1px dashed rgba(0, 212, 255, 0.4);
+      border-radius: 8px;
+      color: #00d4ff;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .add-btn:hover {
+      background: rgba(0, 212, 255, 0.25);
+    }
+
+    /* 版本信息 */
+    .version-bar {
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.3);
+    }
+
+    .version-update {
+      cursor: pointer;
+      color: rgba(255, 255, 255, 0.3);
+      transition: color 0.2s;
+    }
+
+    .version-update:hover {
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    .version-update.has-update {
+      color: #00d4ff;
+      cursor: pointer;
+    }
+
+    .version-update.has-update:hover {
+      color: #33dfff;
+    }
+
+    .version-update.updating {
+      color: #f39c12;
+      cursor: default;
+    }
+
+    /* 代理商状态 - 右上角横排 */
+    .agent-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 12px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+    }
+
+    .agent-bar-text {
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    .agent-bar-btn {
+      padding: 3px 10px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 6px;
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 11px;
+      cursor: pointer;
+      transition: background 0.2s;
+      white-space: nowrap;
+    }
+
+    .agent-bar-btn:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .agent-bar-btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+
+    .header-divider {
+      width: 1px;
+      height: 20px;
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .agent-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.3);
+      flex-shrink: 0;
+    }
+
+    .agent-dot.valid { background: #2ecc71; }
+    .agent-dot.invalid { background: #e74c3c; }
+    .agent-dot.authorizing {
+      background: #f39c12;
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    /* 授权进度 */
+      opacity: 0.5;
+    }
+
+    /* 授权进度 */
+    .auth-progress {
+      margin-top: 10px;
+      padding: 10px;
+      background: rgba(243, 156, 18, 0.1);
+      border: 1px solid rgba(243, 156, 18, 0.3);
+      border-radius: 8px;
+    }
+
+    .auth-progress-text {
+      font-size: 12px;
+      color: #f39c12;
+      margin-bottom: 6px;
+    }
+
+    .auth-progress-bar {
+      height: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .auth-progress-fill {
+      height: 100%;
+      background: #f39c12;
+      border-radius: 2px;
+      transition: width 0.5s ease;
+    }
+
+    .auth-progress-detail {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.4);
+      margin-top: 4px;
+    }
+
+    /* === 弹窗 === */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+
+    .modal-overlay.show {
+      display: flex;
+    }
+
+    .modal {
+      background: #1e2a3a;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 12px;
+      padding: 24px;
+      width: 480px;
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .modal h3 {
+      font-size: 16px;
+      margin-bottom: 16px;
+    }
+
+    .modal-search {
+      width: 100%;
+      padding: 10px 12px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 14px;
+      outline: none;
+      margin-bottom: 12px;
+    }
+
+    .modal-search:focus {
+      border-color: rgba(0, 212, 255, 0.5);
+    }
+
+    .modal-search::placeholder {
+      color: rgba(255, 255, 255, 0.3);
+    }
+
+    .modal-list {
+      flex: 1;
+      overflow-y: auto;
+      max-height: 400px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+    }
+
+    .modal-loading,
+    .modal-error {
+      padding: 40px;
+      text-align: center;
+      color: rgba(255, 255, 255, 0.5);
+      font-size: 14px;
+    }
+
+    .modal-error {
+      color: #e74c3c;
+    }
+
+    .modal-account {
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .modal-account:hover {
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .modal-account.disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+
+    .modal-account input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: #00d4ff;
+      flex-shrink: 0;
+    }
+
+    .modal-account-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .modal-account-name {
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .modal-account-id {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.4);
+    }
+
+    .modal-account-tag {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      flex-shrink: 0;
+    }
+
+    .modal-account-tag.added {
+      background: rgba(46, 204, 113, 0.2);
+      color: #2ecc71;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 16px;
+    }
+
+    .modal-selected {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    .modal-btn-group {
+      display: flex;
+      gap: 8px;
+    }
+
+    .modal-btn {
+      padding: 8px 20px;
+      border-radius: 8px;
+      border: none;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .modal-btn.primary {
+      background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+      color: #fff;
+    }
+
+    .modal-btn.primary:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .modal-btn.cancel {
+      background: rgba(255, 255, 255, 0.1);
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    /* === 主内容区 === */
+    .main-content {
+      flex: 1;
+      overflow-y: auto;
+      height: 100vh;
+    }
+
+    .header {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 20px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      gap: 16px;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .header h1 {
+      font-size: 28px;
+      font-weight: 600;
+      background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      white-space: nowrap;
+    }
+
+    .update-time {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.4);
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .container {
+      padding: 30px 40px;
+    }
+
+    .section-title {
+      font-size: 20px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .section-title::before {
+      content: '';
+      width: 4px;
+      height: 20px;
+      background: linear-gradient(180deg, #00d4ff, #7b2cbf);
+      border-radius: 2px;
+    }
+
+    .live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #e74c3c;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      animation: pulse 2s infinite;
+    }
+
+    .live-badge::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      background: #fff;
+      border-radius: 50%;
+    }
+
+    .refresh-btn {
+      margin-left: auto;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: rgba(255, 255, 255, 0.7);
+      padding: 4px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.2s ease;
+    }
+    .refresh-btn:hover { background: rgba(255, 255, 255, 0.15); color: #fff; }
+    .refresh-btn:active { transform: scale(0.95); }
+    .refresh-btn.refreshing .refresh-icon { animation: spin 0.8s linear infinite; }
+
+    .auto-refresh-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.6);
+    }
+    .auto-refresh-toggle label {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+    }
+    .auto-refresh-switch {
+      position: relative;
+      width: 32px;
+      height: 18px;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 9px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .auto-refresh-switch.on {
+      background: #00d4ff;
+    }
+    .auto-refresh-switch::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 14px;
+      height: 14px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+    .auto-refresh-switch.on::after {
+      transform: translateX(14px);
+    }
+    .countdown-text {
+      min-width: 28px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      color: #00d4ff;
+      font-weight: 600;
+    }
+
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 14px;
+    }
+
+    .card {
+      background: linear-gradient(145deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(0, 212, 255, 0.4);
+      box-shadow: 0 12px 32px rgba(0, 212, 255, 0.12), 0 4px 16px rgba(0, 0, 0, 0.3);
+    }
+
+    .card:hover .card-cover {
+      transform: scale(1.05);
+    }
+
+    .card-cover {
+      transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .card-header {
+      position: relative;
+      height: 120px;
+      overflow: hidden;
+    }
+
+    .card-cover {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .card-cover-placeholder {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #2d3436, #636e72);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      color: rgba(255, 255, 255, 0.3);
+    }
+
+    .card-status {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .card-status.live {
+      background: linear-gradient(90deg, #e74c3c, #c0392b);
+      animation: pulse 2s infinite;
+    }
+
+    .card-status.ended {
+      background: rgba(0, 0, 0, 0.6);
+    }
+
+    .card-account-tag {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      padding: 2px 8px;
+      border-radius: 8px;
+      font-size: 10px;
+      background: rgba(0, 0, 0, 0.6);
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    .card-duration {
+      position: absolute;
+      bottom: 8px;
+      right: 8px;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+    }
+
+    .card-body {
+      padding: 12px;
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .card-anchor {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .anchor-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .anchor-avatar-placeholder {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .anchor-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .anchor-name {
+      font-size: 12px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .anchor-id {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    .card-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+
+    .stat-item {
+      text-align: center;
+      padding: 6px 4px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 6px;
+    }
+
+    .stat-value {
+      font-size: 14px;
+      font-weight: bold;
+      color: #00d4ff;
+    }
+
+    .stat-value.cost {
+      color: #f39c12;
+    }
+
+    .stat-value.gmv {
+      color: #2ecc71;
+    }
+
+    .stat-label {
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.5);
+      margin-top: 2px;
+    }
+
+    .card-footer {
+      padding: 8px 12px;
+      background: rgba(0, 0, 0, 0.2);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 80px 20px;
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    /* 授权中主区域 */
+    .auth-main {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 120px 40px;
+      text-align: center;
+    }
+
+    .auth-main-spinner {
+      width: 64px;
+      height: 64px;
+      border: 4px solid rgba(243, 156, 18, 0.2);
+      border-top-color: #f39c12;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 28px;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .auth-main-title {
+      font-size: 22px;
+      font-weight: 600;
+      color: #f39c12;
+      margin-bottom: 12px;
+    }
+
+    .auth-main-sub {
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.5);
+      margin-bottom: 32px;
+      line-height: 1.6;
+    }
+
+    .auth-main-progress {
+      width: 320px;
+      max-width: 100%;
+    }
+
+    .auth-main-bar {
+      height: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+
+    .auth-main-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #f39c12, #e67e22);
+      border-radius: 3px;
+      transition: width 0.5s ease;
+      width: 0%;
+    }
+
+    .auth-main-detail {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.4);
+    }
+
+    .summary-cards {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .summary-card {
+      background: linear-gradient(145deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius: 16px;
+      padding: 24px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
+    }
+
+    .summary-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .summary-card .icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      margin-bottom: 16px;
+    }
+
+    .summary-card .icon.live {
+      background: rgba(231, 76, 60, 0.2);
+    }
+
+    .summary-card .icon.views {
+      background: rgba(0, 212, 255, 0.2);
+    }
+
+    .summary-card .icon.cost {
+      background: rgba(243, 156, 18, 0.2);
+    }
+
+    .summary-card .icon.gmv {
+      background: rgba(46, 204, 113, 0.2);
+    }
+
+    .summary-card .value {
+      font-size: 32px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    .summary-card .label {
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+  </style>
+</head>
+
+<body>
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <h2>账户管理</h2>
+      <input type="text" class="sidebar-search" placeholder="搜索名称或ID..." id="accountSearch">
+    </div>
+    <div class="account-list" id="accountList"></div>
+    <div class="sidebar-footer">
+      <button class="add-btn" id="addAccountBtn">+ 添加账户</button>
+      <div class="auth-progress" id="authProgress" style="display:none">
+        <div class="auth-progress-text" id="authProgressText">授权中...</div>
+        <div class="auth-progress-bar">
+          <div class="auth-progress-fill" id="authProgressFill"></div>
+        </div>
+        <div class="auth-progress-detail" id="authProgressDetail"></div>
+      </div>
+      <div class="version-bar" id="versionBar">
+        <span class="version-text" id="versionText">v-</span>
+        <span class="version-update" id="versionUpdate"></span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 添加账户弹窗 -->
+  <div class="modal-overlay" id="addModal">
+    <div class="modal">
+      <h3>添加账户</h3>
+      <input type="text" class="modal-search" id="modalSearch" placeholder="搜索账户名称或ID...">
+      <div class="modal-list" id="modalList">
+        <div class="modal-loading">加载中...</div>
+      </div>
+      <div class="modal-actions">
+        <span class="modal-selected" id="modalSelected">已选 0 个</span>
+        <div class="modal-btn-group">
+          <button class="modal-btn cancel" id="modalCancel">取消</button>
+          <button class="modal-btn primary" id="modalConfirm" disabled>添加选中</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="main-content">
+    <div class="header">
+      <div class="header-left">
+        <h1>直播数据大屏</h1>
+        <div class="auto-refresh-toggle" id="autoRefreshArea">
+          <label><span>自动刷新</span><div class="auto-refresh-switch" id="autoRefreshSwitch" onclick="toggleAutoRefresh()"></div></label>
+          <span class="countdown-text" id="countdownText"></span>
+        </div>
+        <button class="refresh-btn" onclick="refreshData()"><span class="refresh-icon">&#8635;</span> 刷新</button>
+        <div class="update-time" id="updateTime">更新中...</div>
+      </div>
+      <div class="header-right">
+        <div class="agent-bar" id="agentSection">
+          <span class="agent-dot" id="agentDot"></span>
+          <span class="agent-bar-text" id="agentStatusText">检测中...</span>
+          <button class="agent-bar-btn" id="agentAuthBtn" onclick="triggerAgentAuth()">重新授权</button>
+        </div>
+      </div>
+    </div>
+    <div class="container">
+      <div class="summary-cards">
+        <div class="summary-card">
+          <div class="icon live">&#128308;</div>
+          <div class="value" id="liveCount">-</div>
+          <div class="label">正在直播</div>
+        </div>
+        <div class="summary-card">
+          <div class="icon views">&#128065;</div>
+          <div class="value" id="totalViews">-</div>
+          <div class="label">总观看次数</div>
+        </div>
+        <div class="summary-card">
+          <div class="icon cost">&#128176;</div>
+          <div class="value" id="totalCost">-</div>
+          <div class="label">总广告消耗</div>
+        </div>
+        <div class="summary-card">
+          <div class="icon gmv">&#128200;</div>
+          <div class="value" id="totalGMV">-</div>
+          <div class="label">总团购支付</div>
+        </div>
+      </div>
+      <div class="section-title">
+        <span class="live-badge">LIVE</span>
+        正在直播
+      </div>
+      <div class="cards-grid" id="liveRooms"></div>
+      <div style="margin-top: 40px;">
+        <div class="section-title">历史直播</div>
+        <div class="cards-grid" id="endedRooms"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let allAccountsData = [];
+    let accountsList = [];
+    let selectedAdvId = null;
+    let searchKeyword = '';
+    // 弹窗状态
+    let availableAccounts = [];
+    let selectedNewIds = new Set();
+    let modalSearchKeyword = '';
+    let authPollingTimer = null;
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function formatNumber(num) {
+      if (num >= 10000) return (num / 10000).toFixed(1) + 'w';
+      if (num >= 1000) return (num / 1000).toFixed(1) + 'k';
+      return num.toString();
+    }
+
+    function formatMoney(yuan) {
+      if (yuan >= 10000) return (yuan / 10000).toFixed(2) + 'w';
+      return yuan.toFixed(2);
+    }
+
+    function formatDuration(val) {
+      if (!val) return '0:00';
+      if (typeof val === 'string' && /[小时分钟秒]/.test(val)) {
+        const h = (val.match(/(\d+)小时/) || [])[1] || 0;
+        const m = (val.match(/(\d+)分钟/) || [])[1] || 0;
+        const s = (val.match(/(\d+)秒/) || [])[1] || 0;
+        if (+h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        return `${m}:${String(s).padStart(2, '0')}`;
+      }
+      const seconds = Number(val) || 0;
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = seconds % 60;
+      if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+      return `${m}:${s.toString().padStart(2, '0')}`;
+    }
+
+    // === 侧边栏 ===
+    function renderSidebar() {
+      const list = document.getElementById('accountList');
+      const keyword = searchKeyword.toLowerCase();
+
+      let html = `
+        <div class="account-item all-item ${selectedAdvId === null ? 'active' : ''}" onclick="selectAccount(null)">
+          <div class="account-status valid"></div>
+          <div class="account-info"><div class="account-name">全部账户</div></div>
+          <span class="account-badge">${accountsList.length}</span>
+        </div>
+      `;
+
+      const filtered = accountsList.filter(a => {
+        if (!keyword) return true;
+        return (a.name || '').toLowerCase().includes(keyword) || a.advId.includes(keyword);
+      });
+
+      for (const acc of filtered) {
+        const isActive = selectedAdvId === acc.advId;
+        const statusClass = acc.cookieStatus || 'unknown';
+        const displayName = escapeHtml(acc.name || acc.advId);
+        const roomInfo = acc.liveCount > 0 ? acc.liveCount : acc.roomCount;
+
+        html += `
+          <div class="account-item ${isActive ? 'active' : ''}" onclick="selectAccount('${escapeHtml(acc.advId)}')">
+            <div class="account-status ${statusClass}"></div>
+            <div class="account-info">
+              <div class="account-name">${displayName}</div>
+              <div class="account-id">${escapeHtml(acc.advId)}</div>
+            </div>
+            <span class="account-badge">${roomInfo}</span>
+            <button class="account-delete" onclick="event.stopPropagation(); removeAccount('${escapeHtml(acc.advId)}')">&times;</button>
+          </div>
+        `;
+      }
+
+      list.innerHTML = html;
+    }
+
+    function selectAccount(advId) {
+      selectedAdvId = advId;
+      renderSidebar();
+      renderMainContent();
+    }
+
+    // === 主内容区 ===
+    function renderMainContent() {
+      // 检查选中账户是否在授权中
+      if (selectedAdvId) {
+        const accInfo = accountsList.find(a => a.advId === selectedAdvId);
+        if (accInfo && (accInfo.cookieStatus === 'authorizing' || accInfo.cookieStatus === 'unknown')) {
+          renderAuthMainView(accInfo);
+          return;
+        }
+      }
+
+      // 恢复正常视图
+      restoreNormalView();
+
+      let filteredAccounts = allAccountsData;
+      if (selectedAdvId) {
+        filteredAccounts = allAccountsData.filter(a => a.advId === selectedAdvId);
+      }
+
+      const allLiveRooms = [];
+      const allEndedRooms = [];
+      filteredAccounts.forEach(account => {
+        (account.liveRooms || []).forEach(room => {
+          room._advId = account.advId;
+          room._accountName = account.name;
+          allLiveRooms.push(room);
+        });
+        (account.endedRooms || []).forEach(room => {
+          room._advId = account.advId;
+          room._accountName = account.name;
+          allEndedRooms.push(room);
+        });
+      });
+
+      const allRooms = [...allLiveRooms, ...allEndedRooms];
+
+      document.getElementById('liveCount').textContent = allLiveRooms.length;
+      document.getElementById('totalViews').textContent = formatNumber(
+        allRooms.reduce((sum, r) => sum + (r.all_live_watch_cnt_td || 0), 0)
+      );
+      document.getElementById('totalCost').textContent = formatMoney(
+        allRooms.reduce((sum, r) => sum + (r.all_ad_cost_amount_td || 0), 0)
+      );
+      document.getElementById('totalGMV').textContent = formatMoney(
+        allRooms.reduce((sum, r) => sum + (r.all_groupon_live_pay_amount_td || 0), 0)
+      );
+
+      const showAccountTag = !selectedAdvId && allAccountsData.length > 1;
+
+      document.getElementById('liveRooms').innerHTML = allLiveRooms.length > 0
+        ? allLiveRooms.map(r => createCard(r, r._advId, showAccountTag ? r._accountName : null)).join('')
+        : '<div class="empty-state"><p>当前没有正在直播的直播间</p></div>';
+
+      document.getElementById('endedRooms').innerHTML = allEndedRooms.length > 0
+        ? allEndedRooms.map(r => createCard(r, r._advId, showAccountTag ? r._accountName : null)).join('')
+        : '<div class="empty-state"><p>暂无历史直播数据</p></div>';
+
+      document.getElementById('updateTime').textContent = `最后更新: ${new Date().toLocaleTimeString()}`;
+    }
+
+    function renderAuthMainView(accInfo) {
+      const container = document.querySelector('.container');
+      const header = document.querySelector('.header');
+
+      header.querySelector('h1').textContent = accInfo.name || accInfo.advId;
+      document.getElementById('updateTime').textContent = '授权中...';
+
+      container.innerHTML = `
+        <div class="auth-main">
+          <div class="auth-main-spinner"></div>
+          <div class="auth-main-title">账户授权中</div>
+          <div class="auth-main-sub">
+            正在为 <strong>${escapeHtml(accInfo.name || accInfo.advId)}</strong> 获取访问权限<br>
+            授权完成后将自动加载直播数据，请勿关闭页面
+          </div>
+          <div class="auth-main-progress">
+            <div class="auth-main-bar"><div class="auth-main-bar-fill" id="authMainBarFill"></div></div>
+            <div class="auth-main-detail" id="authMainDetail">等待授权...</div>
+          </div>
+        </div>
+      `;
+
+      syncAuthToMainView();
+    }
+
+    async function syncAuthToMainView() {
+      try {
+        const data = await window.api.getAuthStatus();
+        const barFill = document.getElementById('authMainBarFill');
+        const detail = document.getElementById('authMainDetail');
+        if (!barFill || !detail) return;
+
+        if (data.success && data.data.isRunning) {
+          const { done, total, currentName } = data.data;
+          const pct = total > 0 ? Math.round((done / total) * 100) : 10;
+          const remaining = Math.max(0, (total - done) * 30);
+          barFill.style.width = pct + '%';
+          let text = `进度 ${done}/${total}`;
+          if (currentName) text += ` · 正在处理: ${currentName}`;
+          if (remaining > 0) text += ` · 预计剩余 ${remaining}秒`;
+          detail.textContent = text;
+        } else {
+          barFill.style.width = '100%';
+          detail.textContent = '授权队列已完成';
+        }
+      } catch (e) { }
+    }
+
+    function restoreNormalView() {
+      const container = document.querySelector('.container');
+      if (!container.querySelector('.summary-cards')) {
+        container.innerHTML = `
+          <div class="summary-cards">
+            <div class="summary-card">
+              <div class="icon live">&#128308;</div>
+              <div class="value" id="liveCount">-</div>
+              <div class="label">正在直播</div>
+            </div>
+            <div class="summary-card">
+              <div class="icon views">&#128065;</div>
+              <div class="value" id="totalViews">-</div>
+              <div class="label">总观看次数</div>
+            </div>
+            <div class="summary-card">
+              <div class="icon cost">&#128176;</div>
+              <div class="value" id="totalCost">-</div>
+              <div class="label">总广告消耗</div>
+            </div>
+            <div class="summary-card">
+              <div class="icon gmv">&#128200;</div>
+              <div class="value" id="totalGMV">-</div>
+              <div class="label">总团购支付</div>
+            </div>
+          </div>
+          <div class="section-title">
+            <span class="live-badge">LIVE</span>
+            正在直播
+          </div>
+          <div class="cards-grid" id="liveRooms"></div>
+          <div style="margin-top: 40px;">
+            <div class="section-title">历史直播</div>
+            <div class="cards-grid" id="endedRooms"></div>
+          </div>
+        `;
+      }
+      document.querySelector('.header h1').textContent = '直播数据大屏';
+    }
+
+    function createCard(room, advId, accountName) {
+      const isLive = room.custom_room_status === 'live' || room.custom_room_status === '2';
+      const roi = room.all_ad_cost_amount_td > 0
+        ? (room.all_groupon_live_pay_amount_td / room.all_ad_cost_amount_td).toFixed(2) : '-';
+      const title = escapeHtml(room.custom_room_title || '未命名直播间');
+      const nickName = escapeHtml(room.custom_aweme_nick_name || '-');
+      const uniqueId = escapeHtml(room.custom_aweme_unique_id || '-');
+      const safeAdvId = escapeHtml(advId);
+      const safeRoomId = escapeHtml(room.room_id);
+      const safeAwemeId = escapeHtml(room.anchor_id || room.custom_aweme_unique_id);
+      const accountTag = accountName ? `<div class="card-account-tag">${escapeHtml(accountName)}</div>` : '';
+
+      return `
+        <div class="card" onclick="openLiveBoard('${safeAdvId}', '${safeRoomId}', '${safeAwemeId}')">
+          <div class="card-header">
+            ${room.custom_room_cover_url
+          ? `<img class="card-cover" src="${escapeHtml(room.custom_room_cover_url)}" alt="封面" onerror="this.parentElement.innerHTML='<div class=card-cover-placeholder>&#127909;</div>'">`
+          : '<div class="card-cover-placeholder">&#127909;</div>'}
+            <div class="card-status ${isLive ? 'live' : 'ended'}">${isLive ? '直播中' : '已结束'}</div>
+            ${accountTag}
+            <div class="card-duration">${formatDuration(room.custom_room_duration)}</div>
+          </div>
+          <div class="card-body">
+            <div class="card-title">${title}</div>
+            <div class="card-anchor">
+              ${room.custom_aweme_user_avatar
+          ? `<img class="anchor-avatar" src="${escapeHtml(room.custom_aweme_user_avatar)}" alt="头像" onerror="this.outerHTML='<div class=anchor-avatar-placeholder>${nickName[0]}</div>'">`
+          : `<div class="anchor-avatar-placeholder">${nickName[0]}</div>`}
+              <div class="anchor-info">
+                <div class="anchor-name">${nickName}</div>
+                <div class="anchor-id">@${uniqueId}</div>
+              </div>
+            </div>
+            <div class="card-stats">
+              <div class="stat-item">
+                <div class="stat-value">${formatNumber(room.all_live_watch_cnt_td)}</div>
+                <div class="stat-label">观看次数</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-value cost">${formatMoney(room.all_ad_cost_amount_td)}</div>
+                <div class="stat-label">广告消耗</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-value gmv">${formatMoney(room.all_groupon_live_pay_amount_td)}</div>
+                <div class="stat-label">团购支付</div>
+              </div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>开播: ${room.custom_room_start_time || '-'}</span>
+            <span>ROI: ${roi}</span>
+          </div>
+        </div>
+      `;
+    }
+
+    // 打开大屏：通过 IPC 调用主进程打开新 BrowserWindow
+    function openLiveBoard(advId, roomId, awemeId) {
+      window.api.openLiveBoard(advId, roomId, awemeId);
+    }
+
+    // === 自动刷新 ===
+    let autoRefreshOn = false;
+    let countdownTimer = null;
+    let countdown = 15;
+
+    function toggleAutoRefresh() {
+      autoRefreshOn = !autoRefreshOn;
+      const sw = document.getElementById('autoRefreshSwitch');
+      if (sw) sw.classList.toggle('on', autoRefreshOn);
+      if (autoRefreshOn) {
+        countdown = 15;
+        updateCountdownUI();
+        countdownTimer = setInterval(() => {
+          countdown--;
+          updateCountdownUI();
+          if (countdown <= 0) {
+            refreshData();
+            countdown = 15;
+          }
+        }, 1000);
+      } else {
+        clearInterval(countdownTimer);
+        countdownTimer = null;
+        const ct = document.getElementById('countdownText');
+        if (ct) ct.textContent = '';
+      }
+    }
+
+    function updateCountdownUI() {
+      const ct = document.getElementById('countdownText');
+      if (ct) ct.textContent = autoRefreshOn ? `${countdown}s` : '';
+    }
+
+    // === 数据获取（IPC 调用）===
+    async function refreshData() {
+      const btn = document.querySelector('.refresh-btn');
+      if (btn) { btn.classList.add('refreshing'); btn.disabled = true; }
+      try {
+        const targets = selectedAdvId ? [selectedAdvId] : accountsList.map(a => a.advId);
+        await Promise.all(targets.map(id => window.api.refreshAccount(id)));
+        await fetchData();
+      } finally {
+        if (btn) { btn.classList.remove('refreshing'); btn.disabled = false; }
+      }
+    }
+
+    async function fetchData() {
+      try {
+        const [roomsData, accountsData] = await Promise.all([
+          window.api.getLiveRooms(),
+          window.api.getAccounts()
+        ]);
+
+        if (roomsData.success) allAccountsData = roomsData.data || [];
+        if (accountsData.success) accountsList = accountsData.data || [];
+
+        renderSidebar();
+        renderMainContent();
+        updateAuthProgress();
+      } catch (error) {
+        console.error('请求失败:', error);
+      }
+    }
+
+    // === 授权进度 ===
+    async function updateAuthProgress() {
+      try {
+        const data = await window.api.getAuthStatus();
+        const el = document.getElementById('authProgress');
+        if (data.success && data.data.isRunning) {
+          el.style.display = 'block';
+          const { done, total, currentName } = data.data;
+          const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+          const remaining = Math.max(0, (total - done) * 30);
+          document.getElementById('authProgressText').textContent = `授权中 (${done}/${total})`;
+          document.getElementById('authProgressFill').style.width = pct + '%';
+          document.getElementById('authProgressDetail').textContent =
+            (currentName ? `正在: ${currentName}` : '') + (remaining > 0 ? ` ~${remaining}秒` : '');
+          syncAuthToMainView();
+          if (!authPollingTimer) {
+            authPollingTimer = setInterval(async () => {
+              await updateAuthProgress();
+              await fetchData();
+            }, 3000);
+          }
+        } else {
+          el.style.display = 'none';
+          if (authPollingTimer) {
+            clearInterval(authPollingTimer);
+            authPollingTimer = null;
+          }
+        }
+      } catch (e) { }
+    }
+
+    // === 代理商授权 ===
+    let agentAuthPolling = null;
+
+    async function fetchAgentStatus() {
+      try {
+        const data = await window.api.getAgentStatus();
+        if (data.success) updateAgentUI(data.data);
+        return data.data;
+      } catch (e) { return null; }
+    }
+
+    function updateAgentUI(data) {
+      const dot = document.getElementById('agentDot');
+      const text = document.getElementById('agentStatusText');
+      const btn = document.getElementById('agentAuthBtn');
+      dot.className = 'agent-dot';
+
+      if (data.isAuthRunning) {
+        dot.classList.add('authorizing');
+        text.textContent = '等待登录...';
+        text.style.color = '#f39c12';
+        btn.textContent = '取消';
+        btn.disabled = false;
+        btn.onclick = cancelAgentAuth;
+      } else if (data.cookieStatus === 'valid') {
+        dot.classList.add('valid');
+        text.textContent = '已授权';
+        text.style.color = '#2ecc71';
+        btn.textContent = '重新授权';
+        btn.disabled = false;
+        btn.onclick = triggerAgentAuth;
+      } else {
+        dot.classList.add('invalid');
+        text.textContent = '未授权';
+        text.style.color = '#e74c3c';
+        btn.textContent = '立即授权';
+        btn.disabled = false;
+        btn.onclick = triggerAgentAuth;
+      }
+    }
+
+    async function triggerAgentAuth() {
+      try {
+        const data = await window.api.triggerAgentAuth();
+        if (!data.success) { alert(data.error); return; }
+        startAgentAuthPolling();
+      } catch (e) { alert('请求失败: ' + e.message); }
+    }
+
+    async function cancelAgentAuth() {
+      await window.api.cancelAgentAuth();
+      stopAgentAuthPolling();
+      fetchAgentStatus();
+    }
+
+    function startAgentAuthPolling() {
+      stopAgentAuthPolling();
+      updateAgentUI({ isAuthRunning: true });
+      agentAuthPolling = setInterval(async () => {
+        const data = await fetchAgentStatus();
+        if (data && !data.isAuthRunning) {
+          stopAgentAuthPolling();
+          if (data.cookieStatus === 'valid') {
+            fetchData();
+          }
+        }
+      }, 3000);
+    }
+
+    function stopAgentAuthPolling() {
+      if (agentAuthPolling) { clearInterval(agentAuthPolling); agentAuthPolling = null; }
+    }
+
+    // 页面加载时获取代理商状态
+    fetchAgentStatus();
+
+    // === 弹窗：从代理商获取可用账户列表 ===
+    async function openAddModal() {
+      document.getElementById('addModal').classList.add('show');
+      document.getElementById('modalSearch').value = '';
+      modalSearchKeyword = '';
+      selectedNewIds.clear();
+      document.getElementById('modalList').innerHTML = '<div class="modal-loading">正在从代理商后台获取账户列表...</div>';
+      updateModalActions();
+
+      try {
+        const data = await window.api.getAvailableAccounts();
+        if (data.success) {
+          availableAccounts = data.data || [];
+          renderModalList();
+        } else {
+          document.getElementById('modalList').innerHTML =
+            `<div class="modal-error">${escapeHtml(data.error || '获取失败')}</div>`;
+        }
+      } catch (e) {
+        document.getElementById('modalList').innerHTML =
+          `<div class="modal-error">请求失败: ${escapeHtml(e.message)}</div>`;
+      }
+    }
+
+    function renderModalList() {
+      const keyword = modalSearchKeyword.toLowerCase();
+      const filtered = availableAccounts.filter(a => {
+        if (!keyword) return true;
+        return a.advName.toLowerCase().includes(keyword) || a.advId.includes(keyword);
+      });
+
+      if (filtered.length === 0) {
+        document.getElementById('modalList').innerHTML =
+          '<div class="modal-loading">无匹配账户</div>';
+        return;
+      }
+
+      let html = '';
+      for (const acc of filtered) {
+        const isAdded = acc.added;
+        const isChecked = selectedNewIds.has(acc.advId);
+        html += `
+          <div class="modal-account ${isAdded ? 'disabled' : ''}"
+               onclick="${isAdded ? '' : `toggleModalAccount('${acc.advId}')`}">
+            <input type="checkbox" ${isChecked ? 'checked' : ''} ${isAdded ? 'disabled' : ''}
+                   onclick="event.stopPropagation(); ${isAdded ? 'return false' : `toggleModalAccount('${acc.advId}')`}">
+            <div class="modal-account-info">
+              <div class="modal-account-name">${escapeHtml(acc.advName || acc.advId)}</div>
+              <div class="modal-account-id">${escapeHtml(acc.advId)}</div>
+            </div>
+            ${isAdded ? '<span class="modal-account-tag added">已添加</span>' : ''}
+          </div>
+        `;
+      }
+
+      document.getElementById('modalList').innerHTML = html;
+    }
+
+    function toggleModalAccount(advId) {
+      if (selectedNewIds.has(advId)) {
+        selectedNewIds.delete(advId);
+      } else {
+        selectedNewIds.add(advId);
+      }
+      renderModalList();
+      updateModalActions();
+    }
+
+    function updateModalActions() {
+      const count = selectedNewIds.size;
+      document.getElementById('modalSelected').textContent = `已选 ${count} 个`;
+      document.getElementById('modalConfirm').disabled = count === 0;
+    }
+
+    async function submitBatchAdd() {
+      if (selectedNewIds.size === 0) return;
+      const accounts = [];
+      let lastAdvId = null;
+      for (const advId of selectedNewIds) {
+        const acc = availableAccounts.find(a => a.advId === advId);
+        accounts.push({ advId, name: acc?.advName });
+        lastAdvId = advId;
+      }
+
+      document.getElementById('addModal').classList.remove('show');
+
+      try {
+        const data = await window.api.batchAddAccounts(accounts);
+        if (data.success) {
+          // 自动选中：单个选第一个，多个选"全部"
+          if (accounts.length === 1 && lastAdvId) {
+            selectedAdvId = lastAdvId;
+          }
+          await fetchData();
+          updateAuthProgress();
+        } else {
+          alert('添加失败: ' + (data.error || '未知错误'));
+        }
+      } catch (e) {
+        alert('添加失败: ' + e.message);
+      }
+    }
+
+    async function removeAccount(advId) {
+      if (!confirm(`确定删除账户 ${advId}？`)) return;
+      try {
+        const data = await window.api.removeAccount(advId);
+        if (data.success) {
+          if (selectedAdvId === advId) selectedAdvId = null;
+          await fetchData();
+        }
+      } catch (e) {
+        alert('删除失败: ' + e.message);
+      }
+    }
+
+    // === 事件绑定 ===
+    document.getElementById('accountSearch').addEventListener('input', (e) => {
+      searchKeyword = e.target.value;
+      renderSidebar();
+    });
+
+    document.getElementById('addAccountBtn').addEventListener('click', openAddModal);
+
+    document.getElementById('modalCancel').addEventListener('click', () => {
+      document.getElementById('addModal').classList.remove('show');
+    });
+
+    document.getElementById('addModal').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) {
+        document.getElementById('addModal').classList.remove('show');
+      }
+    });
+
+    document.getElementById('modalSearch').addEventListener('input', (e) => {
+      modalSearchKeyword = e.target.value;
+      renderModalList();
+    });
+
+    document.getElementById('modalConfirm').addEventListener('click', submitBatchAdd);
+
+    // 监听主进程数据更新事件
+    window.api.onDataUpdate(() => {
+      fetchData();
+    });
+
+    // === 版本与更新 ===
+    async function initVersion() {
+      try {
+        const info = await window.api.getVersion();
+        document.getElementById('versionText').textContent = `v${info.version}`;
+        checkForUpdate();
+      } catch (e) {}
+    }
+
+    async function checkForUpdate() {
+      const el = document.getElementById('versionUpdate');
+      el.textContent = '检查更新...';
+      el.className = 'version-update';
+      try {
+        const result = await window.api.checkUpdate();
+        if (result.hasUpdate) {
+          el.textContent = `新版本 v${result.latest}`;
+          el.className = 'version-update has-update';
+          el.onclick = doUpdate;
+        } else {
+          el.textContent = '已是最新';
+          el.className = 'version-update';
+          el.onclick = () => checkForUpdate();
+        }
+      } catch (e) {
+        el.textContent = '检查失败';
+        el.className = 'version-update';
+        el.onclick = () => checkForUpdate();
+      }
+    }
+
+    async function doUpdate() {
+      const el = document.getElementById('versionUpdate');
+      el.textContent = '更新中...';
+      el.className = 'version-update updating';
+      el.onclick = null;
+      try {
+        const result = await window.api.doUpdate();
+        if (result.success) {
+          el.textContent = '更新完成，重启中...';
+        } else {
+          el.textContent = '更新失败';
+          el.className = 'version-update';
+          el.onclick = doUpdate;
+          alert('更新失败: ' + (result.error || '未知错误'));
+        }
+      } catch (e) {
+        el.textContent = '更新失败';
+        el.className = 'version-update';
+        el.onclick = doUpdate;
+      }
+    }
+
+    // 初始加载
+    fetchData();
+    // 默认开启自动刷新
+    toggleAutoRefresh();
+    // 版本信息
+    initVersion();
+  </script>
+</body>
+
+</html>
