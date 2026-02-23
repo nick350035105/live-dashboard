@@ -21,4 +21,9 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('data-update', callback);
     return () => ipcRenderer.removeListener('data-update', callback);
   },
+  onUpdateProgress: (callback: (percent: number) => void) => {
+    const handler = (_event: any, percent: number) => callback(percent);
+    ipcRenderer.on('update-progress', handler);
+    return () => ipcRenderer.removeListener('update-progress', handler);
+  },
 });

@@ -1,4 +1,4 @@
-import { app, shell } from 'electron';
+import { app, BrowserWindow } from 'electron';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -36,14 +36,22 @@ export async function checkUpdate(): Promise<{ hasUpdate: boolean; latest: strin
   }
 }
 
-// 下载文件，自动跟随重定向
+function sendProgress(percent: number) {
+  const wins = BrowserWindow.getAllWindows();
+  for (const win of wins) {
+    if (!win.isDestroyed()) {
+      win.webContents.send('update-progress', percent);
+    }
+  }
+}
+
+// 下载文件，带进度回调，自动跟随重定向
 function downloadFile(url: string, dest: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const file = fs.createWriteStream(dest);
     const request = (url.startsWith('https') ? https : http).get(url, {
       headers: { 'User-Agent': 'live-dashboard-electron' }
     }, (response) => {
-      // 跟随重定向
       if (response.statusCode === 301 || response.statusCode === 302) {
         file.close();
         fs.unlinkSync(dest);
@@ -56,6 +64,18 @@ function downloadFile(url: string, dest: string): Promise<void> {
         fs.unlinkSync(dest);
         return reject(new Error(`下载失败: HTTP ${response.statusCode}`));
       }
+
+      const totalBytes = parseInt(response.headers['content-length'] || '0', 10);
+      let receivedBytes = 0;
+
+      response.on('data', (chunk: Buffer) => {
+        receivedBytes += chunk.length;
+        if (totalBytes > 0) {
+          const percent = Math.round((receivedBytes / totalBytes) * 100);
+          sendProgress(percent);
+        }
+      });
+
       response.pipe(file);
       file.on('finish', () => { file.close(); resolve(); });
     });
@@ -70,27 +90,29 @@ function downloadFile(url: string, dest: string): Promise<void> {
 export async function doUpdate(): Promise<{ success: boolean; error?: string }> {
   try {
     if (!app.isPackaged) {
-      // 开发模式：git pull 更新
       const cwd = app.getAppPath();
-      console.log('[更新] 开始执行 git pull...');
+      sendProgress(10);
       execSync('git pull origin main', { cwd, stdio: 'pipe', timeout: 60000 });
+      sendProgress(40);
       execSync('npm install', { cwd, stdio: 'pipe', timeout: 120000 });
+      sendProgress(60);
       execSync('npx tsc', { cwd, stdio: 'pipe', timeout: 60000 });
+      sendProgress(80);
       execSync('npx electron-rebuild', { cwd, stdio: 'pipe', timeout: 120000 });
+      sendProgress(100);
       app.relaunch();
       app.exit(0);
       return { success: true };
     }
 
-    // 打包模式：从 GitHub Release 下载 dmg 并安装
-    console.log('[更新] 获取最新版本信息...');
+    // 打包模式：下载 dmg → 挂载 → 复制 .app → 重启
+    sendProgress(0);
     const res = await fetch(REPO_API, {
       headers: { 'User-Agent': 'live-dashboard-electron' }
     });
     if (!res.ok) throw new Error(`GitHub API ${res.status}`);
     const release: any = await res.json();
 
-    // 查找 dmg 资源
     const dmgAsset = (release.assets || []).find((a: any) =>
       a.name.endsWith('.dmg') && a.name.includes('arm64')
     ) || (release.assets || []).find((a: any) => a.name.endsWith('.dmg'));
@@ -100,20 +122,58 @@ export async function doUpdate(): Promise<{ success: boolean; error?: string }> 
     }
 
     const downloadUrl = dmgAsset.browser_download_url;
-    const dmgPath = path.join(app.getPath('downloads'), dmgAsset.name);
+    const dmgPath = path.join(app.getPath('temp'), dmgAsset.name);
 
     console.log(`[更新] 下载 ${dmgAsset.name} ...`);
     await downloadFile(downloadUrl, dmgPath);
-
     console.log(`[更新] 下载完成: ${dmgPath}`);
 
-    // 打开 dmg
-    await shell.openPath(dmgPath);
+    // 自动安装：挂载 dmg → 复制 .app 到 Applications → 卸载 → 重启
+    sendProgress(100);
+    console.log('[更新] 开始自动安装...');
 
-    // 退出当前应用，让用户完成安装
-    setTimeout(() => {
-      app.exit(0);
-    }, 1000);
+    const appPath = process.execPath; // 当前 .app 内的可执行文件路径
+    const appBundlePath = appPath.replace(/\/Contents\/MacOS\/.+$/, '');
+    const appName = path.basename(appBundlePath); // e.g. "直播数据大屏.app"
+    const appsDir = path.dirname(appBundlePath); // e.g. "/Applications"
+
+    // 挂载 dmg
+    const mountOutput = execSync(`hdiutil attach "${dmgPath}" -nobrowse -noautoopen`, {
+      encoding: 'utf-8', timeout: 30000
+    });
+    // 解析挂载点
+    const mountMatch = mountOutput.match(/\/Volumes\/.+$/m);
+    if (!mountMatch) throw new Error('挂载 DMG 失败');
+    const mountPoint = mountMatch[0].trim();
+    console.log(`[更新] DMG 挂载到: ${mountPoint}`);
+
+    // 查找 .app
+    const items = fs.readdirSync(mountPoint);
+    const appBundle = items.find(i => i.endsWith('.app'));
+    if (!appBundle) {
+      execSync(`hdiutil detach "${mountPoint}" -force`, { stdio: 'pipe' });
+      throw new Error('DMG 中未找到 .app');
+    }
+
+    const srcApp = path.join(mountPoint, appBundle);
+    const destApp = path.join(appsDir, appName);
+
+    // 删除旧版本并复制新版本
+    console.log(`[更新] 替换 ${destApp} ...`);
+    execSync(`rm -rf "${destApp}" && cp -R "${srcApp}" "${destApp}"`, {
+      stdio: 'pipe', timeout: 60000
+    });
+
+    // 卸载 dmg
+    execSync(`hdiutil detach "${mountPoint}" -force`, { stdio: 'pipe', timeout: 10000 });
+    // 清理临时文件
+    if (fs.existsSync(dmgPath)) fs.unlinkSync(dmgPath);
+
+    console.log('[更新] 安装完成，准备重启...');
+
+    // 重启应用
+    app.relaunch({ execPath: path.join(destApp, 'Contents', 'MacOS', appName.replace('.app', '')) });
+    app.exit(0);
 
     return { success: true };
   } catch (error: any) {

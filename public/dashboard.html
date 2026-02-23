@@ -1777,13 +1777,24 @@
 
     async function doUpdate() {
       const el = document.getElementById('versionUpdate');
-      el.textContent = '下载中...';
+      el.textContent = '更新中 0%';
       el.className = 'version-update updating';
       el.onclick = null;
+
+      // 监听进度
+      const removeListener = window.api.onUpdateProgress((percent) => {
+        if (percent < 100) {
+          el.textContent = `更新中 ${percent}%`;
+        } else {
+          el.textContent = '安装中...';
+        }
+      });
+
       try {
         const result = await window.api.doUpdate();
+        removeListener();
         if (result.success) {
-          el.textContent = '安装中，即将退出...';
+          el.textContent = '重启中...';
         } else {
           el.textContent = '更新失败';
           el.className = 'version-update';
@@ -1791,6 +1802,7 @@
           alert('更新失败: ' + (result.error || '未知错误'));
         }
       } catch (e) {
+        removeListener();
         el.textContent = '更新失败';
         el.className = 'version-update';
         el.onclick = doUpdate;
