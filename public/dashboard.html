@@ -886,6 +886,54 @@
       color: rgba(255, 255, 255, 0.5);
     }
 
+    .section-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .section-bar .section-title {
+      margin-bottom: 0;
+    }
+
+    .room-filter-input {
+      padding: 5px 10px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      color: #e2e8f0;
+      font-size: 12px;
+      outline: none;
+      width: 180px;
+      transition: border-color 0.2s;
+    }
+
+    .room-filter-input:focus {
+      border-color: rgba(0, 212, 255, 0.4);
+    }
+
+    .room-filter-input::placeholder {
+      color: rgba(255, 255, 255, 0.3);
+    }
+
+    .date-filter-select {
+      padding: 5px 8px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      color: #e2e8f0;
+      font-size: 12px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .date-filter-select option {
+      background: #1a1f2e;
+      color: #e2e8f0;
+    }
+
     /* 授权中主区域 */
     .auth-main {
       display: flex;
@@ -1119,13 +1167,24 @@
           <div class="label">总团购支付</div>
         </div>
       </div>
-      <div class="section-title">
-        <span class="live-badge">LIVE</span>
-        正在直播
+      <div class="section-bar">
+        <div class="section-title">
+          <span class="live-badge">LIVE</span>
+          正在直播
+        </div>
+        <input class="room-filter-input" id="roomFilterInput" type="text" placeholder="搜索主播/直播间名称..." oninput="onRoomFilterChange(this.value)">
       </div>
       <div class="cards-grid" id="liveRooms"></div>
       <div style="margin-top: 40px;">
-        <div class="section-title">历史直播</div>
+        <div class="section-bar">
+          <div class="section-title">历史直播</div>
+          <select class="date-filter-select" id="endedDaysSelect" onchange="onEndedDaysChange(this.value)">
+            <option value="3">最近3天</option>
+            <option value="7" selected>最近7天</option>
+            <option value="14">最近14天</option>
+            <option value="30">最近30天</option>
+          </select>
+        </div>
         <div class="cards-grid" id="endedRooms"></div>
       </div>
     </div>
@@ -1136,6 +1195,8 @@
     let accountsList = [];
     let selectedAdvId = null;
     let searchKeyword = '';
+    let roomFilterKeyword = '';
+    let endedDaysFilter = 7;
     // 弹窗状态
     let availableAccounts = [];
     let selectedNewIds = new Set();
@@ -1222,6 +1283,31 @@
       renderMainContent();
     }
 
+    function onRoomFilterChange(val) {
+      roomFilterKeyword = val.trim().toLowerCase();
+      renderMainContent();
+    }
+
+    function onEndedDaysChange(val) {
+      endedDaysFilter = parseInt(val, 10);
+      renderMainContent();
+    }
+
+    function matchesRoomFilter(room) {
+      if (!roomFilterKeyword) return true;
+      const title = (room.custom_room_title || '').toLowerCase();
+      const nick = (room.custom_aweme_nick_name || '').toLowerCase();
+      const uid = (room.custom_aweme_unique_id || '').toLowerCase();
+      return title.includes(roomFilterKeyword) || nick.includes(roomFilterKeyword) || uid.includes(roomFilterKeyword);
+    }
+
+    function withinEndedDays(room) {
+      if (!room.custom_room_start_time) return true;
+      const startTime = new Date(room.custom_room_start_time).getTime();
+      const cutoff = Date.now() - endedDaysFilter * 24 * 60 * 60 * 1000;
+      return startTime >= cutoff;
+    }
+
     // === 主内容区 ===
     function renderMainContent() {
       // 检查选中账户是否在授权中
@@ -1271,13 +1357,23 @@
 
       const showAccountTag = !selectedAdvId && allAccountsData.length > 1;
 
-      document.getElementById('liveRooms').innerHTML = allLiveRooms.length > 0
-        ? allLiveRooms.map(r => createCard(r, r._advId, showAccountTag ? r._accountName : null)).join('')
+      // 应用筛选
+      const filteredLive = allLiveRooms.filter(matchesRoomFilter);
+      const filteredEnded = allEndedRooms.filter(r => matchesRoomFilter(r) && withinEndedDays(r));
+
+      document.getElementById('liveRooms').innerHTML = filteredLive.length > 0
+        ? filteredLive.map(r => createCard(r, r._advId, showAccountTag ? r._accountName : null)).join('')
         : '<div class="empty-state"><p>当前没有正在直播的直播间</p></div>';
 
-      document.getElementById('endedRooms').innerHTML = allEndedRooms.length > 0
-        ? allEndedRooms.map(r => createCard(r, r._advId, showAccountTag ? r._accountName : null)).join('')
+      document.getElementById('endedRooms').innerHTML = filteredEnded.length > 0
+        ? filteredEnded.map(r => createCard(r, r._advId, showAccountTag ? r._accountName : null)).join('')
         : '<div class="empty-state"><p>暂无历史直播数据</p></div>';
+
+      // 保持筛选输入框的值
+      const filterInput = document.getElementById('roomFilterInput');
+      if (filterInput && filterInput.value !== roomFilterKeyword) filterInput.value = roomFilterKeyword;
+      const daysSelect = document.getElementById('endedDaysSelect');
+      if (daysSelect) daysSelect.value = endedDaysFilter;
 
       document.getElementById('updateTime').textContent = `最后更新: ${new Date().toLocaleTimeString()}`;
     }
