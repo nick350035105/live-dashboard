@@ -1,5 +1,9 @@
-import { app } from 'electron';
+import { app, shell } from 'electron';
 import { execSync } from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as https from 'https';
+import * as http from 'http';
 
 const REPO_API = 'https://api.github.com/repos/nick350035105/live-dashboard/releases/latest';
 
@@ -18,7 +22,6 @@ export async function checkUpdate(): Promise<{ hasUpdate: boolean; latest: strin
       headers: { 'User-Agent': 'live-dashboard-electron' }
     });
     if (res.status === 404) {
-      // 仓库尚无 Release，视为已是最新
       return { hasUpdate: false, latest: current, current };
     }
     if (!res.ok) throw new Error(`GitHub API ${res.status}`);
@@ -33,32 +36,84 @@ export async function checkUpdate(): Promise<{ hasUpdate: boolean; latest: strin
   }
 }
 
+// 下载文件，自动跟随重定向
+function downloadFile(url: string, dest: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(dest);
+    const request = (url.startsWith('https') ? https : http).get(url, {
+      headers: { 'User-Agent': 'live-dashboard-electron' }
+    }, (response) => {
+      // 跟随重定向
+      if (response.statusCode === 301 || response.statusCode === 302) {
+        file.close();
+        fs.unlinkSync(dest);
+        const redirectUrl = response.headers.location;
+        if (!redirectUrl) return reject(new Error('重定向无目标地址'));
+        return downloadFile(redirectUrl, dest).then(resolve).catch(reject);
+      }
+      if (response.statusCode !== 200) {
+        file.close();
+        fs.unlinkSync(dest);
+        return reject(new Error(`下载失败: HTTP ${response.statusCode}`));
+      }
+      response.pipe(file);
+      file.on('finish', () => { file.close(); resolve(); });
+    });
+    request.on('error', (err) => {
+      file.close();
+      if (fs.existsSync(dest)) fs.unlinkSync(dest);
+      reject(err);
+    });
+  });
+}
+
 export async function doUpdate(): Promise<{ success: boolean; error?: string }> {
   try {
-    // 打包后 asar 内无法 git pull，需要从源码运行才支持热更新
-    const resourcesPath = process.resourcesPath;
-    const isPackaged = app.isPackaged;
-
-    if (isPackaged) {
-      return { success: false, error: '安装包模式暂不支持热更新，请从 Releases 下载最新版本' };
+    if (!app.isPackaged) {
+      // 开发模式：git pull 更新
+      const cwd = app.getAppPath();
+      console.log('[更新] 开始执行 git pull...');
+      execSync('git pull origin main', { cwd, stdio: 'pipe', timeout: 60000 });
+      execSync('npm install', { cwd, stdio: 'pipe', timeout: 120000 });
+      execSync('npx tsc', { cwd, stdio: 'pipe', timeout: 60000 });
+      execSync('npx electron-rebuild', { cwd, stdio: 'pipe', timeout: 120000 });
+      app.relaunch();
+      app.exit(0);
+      return { success: true };
     }
 
-    const cwd = app.getAppPath();
-    console.log('[更新] 开始执行 git pull...');
-    execSync('git pull origin main', { cwd, stdio: 'pipe', timeout: 60000 });
+    // 打包模式：从 GitHub Release 下载 dmg 并安装
+    console.log('[更新] 获取最新版本信息...');
+    const res = await fetch(REPO_API, {
+      headers: { 'User-Agent': 'live-dashboard-electron' }
+    });
+    if (!res.ok) throw new Error(`GitHub API ${res.status}`);
+    const release: any = await res.json();
 
-    console.log('[更新] 安装依赖...');
-    execSync('npm install', { cwd, stdio: 'pipe', timeout: 120000 });
+    // 查找 dmg 资源
+    const dmgAsset = (release.assets || []).find((a: any) =>
+      a.name.endsWith('.dmg') && a.name.includes('arm64')
+    ) || (release.assets || []).find((a: any) => a.name.endsWith('.dmg'));
 
-    console.log('[更新] 重新编译...');
-    execSync('npx tsc', { cwd, stdio: 'pipe', timeout: 60000 });
+    if (!dmgAsset) {
+      throw new Error('未找到安装包，请手动从 GitHub Releases 下载');
+    }
 
-    console.log('[更新] 重新编译原生模块...');
-    execSync('npx electron-rebuild', { cwd, stdio: 'pipe', timeout: 120000 });
+    const downloadUrl = dmgAsset.browser_download_url;
+    const dmgPath = path.join(app.getPath('downloads'), dmgAsset.name);
 
-    console.log('[更新] 更新完成，准备重启...');
-    app.relaunch();
-    app.exit(0);
+    console.log(`[更新] 下载 ${dmgAsset.name} ...`);
+    await downloadFile(downloadUrl, dmgPath);
+
+    console.log(`[更新] 下载完成: ${dmgPath}`);
+
+    // 打开 dmg
+    await shell.openPath(dmgPath);
+
+    // 退出当前应用，让用户完成安装
+    setTimeout(() => {
+      app.exit(0);
+    }, 1000);
 
     return { success: true };
   } catch (error: any) {

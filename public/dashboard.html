@@ -1777,13 +1777,13 @@
 
     async function doUpdate() {
       const el = document.getElementById('versionUpdate');
-      el.textContent = '更新中...';
+      el.textContent = '下载中...';
       el.className = 'version-update updating';
       el.onclick = null;
       try {
         const result = await window.api.doUpdate();
         if (result.success) {
-          el.textContent = '更新完成，重启中...';
+          el.textContent = '安装中，即将退出...';
         } else {
           el.textContent = '更新失败';
           el.className = 'version-update';
