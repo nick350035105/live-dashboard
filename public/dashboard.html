@@ -1284,10 +1284,6 @@
 
     function renderAuthMainView(accInfo) {
       const container = document.querySelector('.container');
-      const header = document.querySelector('.header');
-
-      header.querySelector('h1').textContent = accInfo.name || accInfo.advId;
-      document.getElementById('updateTime').textContent = '授权中...';
 
       container.innerHTML = `
         <div class="auth-main">
