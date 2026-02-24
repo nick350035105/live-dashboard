@@ -230,6 +230,60 @@
       color: rgba(255, 255, 255, 0.3);
     }
 
+    .version-left {
+      position: relative;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      user-select: none;
+    }
+
+    .version-left:hover {
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    .version-arrow {
+      font-size: 8px;
+      transition: transform 0.2s;
+    }
+
+    .version-left.open .version-arrow {
+      transform: rotate(180deg);
+    }
+
+    .version-dropdown {
+      display: none;
+      position: absolute;
+      bottom: 100%;
+      left: 0;
+      margin-bottom: 4px;
+      background: rgba(30, 41, 59, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      padding: 4px 0;
+      min-width: 90px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      z-index: 20;
+    }
+
+    .version-left.open .version-dropdown {
+      display: block;
+    }
+
+    .version-dropdown-item {
+      padding: 6px 12px;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.6);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .version-dropdown-item:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+    }
+
     .version-update {
       cursor: pointer;
       color: rgba(255, 255, 255, 0.3);
@@ -779,6 +833,25 @@
       font-size: 11px;
     }
 
+    .card-auth-tag {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+
+    .card-auth-tag.self {
+      background: rgba(46, 204, 113, 0.2);
+      color: #2ecc71;
+    }
+
+    .card-auth-tag.unauth {
+      background: rgba(231, 76, 60, 0.2);
+      color: #e74c3c;
+    }
+
     .card-body {
       padding: 8px 10px;
     }
@@ -1003,8 +1076,8 @@
     .summary-cards {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      gap: 20px;
-      margin-bottom: 30px;
+      gap: 12px;
+      margin-bottom: 16px;
     }
 
     .summary-card {
@@ -1012,27 +1085,25 @@
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
       border-radius: 16px;
-      padding: 24px;
+      padding: 12px 16px;
       border: 1px solid rgba(255, 255, 255, 0.08);
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
     }
 
     .summary-card:hover {
-      transform: translateY(-4px);
       box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
       border-color: rgba(255, 255, 255, 0.15);
     }
 
     .summary-card .icon {
-      width: 48px;
-      height: 48px;
-      border-radius: 12px;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 24px;
-      margin-bottom: 16px;
+      font-size: 16px;
+      margin-bottom: 8px;
     }
 
     .summary-card .icon.live {
@@ -1052,13 +1123,13 @@
     }
 
     .summary-card .value {
-      font-size: 32px;
+      font-size: 22px;
       font-weight: bold;
-      margin-bottom: 4px;
+      margin-bottom: 2px;
     }
 
     .summary-card .label {
-      font-size: 14px;
+      font-size: 12px;
       color: rgba(255, 255, 255, 0.5);
     }
 
@@ -1099,7 +1170,13 @@
         <div class="auth-progress-detail" id="authProgressDetail"></div>
       </div>
       <div class="version-bar" id="versionBar">
-        <span class="version-text" id="versionText">v-</span>
+        <div class="version-left" id="versionLeft" onclick="this.classList.toggle('open')">
+          <span class="version-text" id="versionText">v-</span>
+          <span class="version-arrow">&#9650;</span>
+          <div class="version-dropdown">
+            <div class="version-dropdown-item" onclick="event.stopPropagation(); exportLogs(); document.getElementById('versionLeft').classList.remove('open');">导出日志</div>
+          </div>
+        </div>
         <span class="version-update" id="versionUpdate"></span>
       </div>
     </div>
@@ -1109,6 +1186,11 @@
   <div class="modal-overlay" id="addModal">
     <div class="modal">
       <h3>添加账户</h3>
+      <select class="date-filter-select" id="modalCateSelect" style="width:100%;margin-bottom:8px;padding:7px 10px;font-size:13px;">
+        <option value="8" selected>巨量本地推</option>
+        <option value="0">巨量营销</option>
+        <option value="4">巨量千川</option>
+      </select>
       <input type="text" class="modal-search" id="modalSearch" placeholder="搜索账户名称或ID...">
       <div class="modal-list" id="modalList">
         <div class="modal-loading">加载中...</div>
@@ -1133,6 +1215,11 @@
             <span class="countdown-text" id="countdownText"></span>
           </div>
           <button class="refresh-btn" onclick="refreshData()"><span class="refresh-icon">&#8635;</span> 刷新</button>
+          <select class="date-filter-select" id="authTypeSelect" onchange="onAuthTypeFilterChange(this.value)">
+            <option value="all">全部抖音号</option>
+            <option value="自运营" selected>自运营</option>
+            <option value="未授权">未授权</option>
+          </select>
           <div class="update-time" id="updateTime">更新中...</div>
         </div>
       </div>
@@ -1178,6 +1265,7 @@
       <div style="margin-top: 40px;">
         <div class="section-bar">
           <div class="section-title">历史直播</div>
+          <input class="room-filter-input" id="endedFilterInput" type="text" placeholder="搜索主播/直播间名称..." oninput="onEndedFilterChange(this.value)">
           <select class="date-filter-select" id="endedDaysSelect" onchange="onEndedDaysChange(this.value)">
             <option value="3">最近3天</option>
             <option value="7" selected>最近7天</option>
@@ -1196,11 +1284,14 @@
     let selectedAdvId = null;
     let searchKeyword = '';
     let roomFilterKeyword = '';
+    let endedFilterKeyword = '';
     let endedDaysFilter = 7;
+    let authTypeFilter = '自运营'; // 'all' | '自运营' | '未授权'
     // 弹窗状态
     let availableAccounts = [];
     let selectedNewIds = new Set();
     let modalSearchKeyword = '';
+    let modalAccountCate = 8;
     let authPollingTimer = null;
 
     function escapeHtml(str) {
@@ -1280,7 +1371,7 @@
     function selectAccount(advId) {
       selectedAdvId = advId;
       renderSidebar();
-      renderMainContent();
+      fetchData();
     }
 
     function onRoomFilterChange(val) {
@@ -1293,12 +1384,43 @@
       renderMainContent();
     }
 
+    function onEndedFilterChange(val) {
+      endedFilterKeyword = val.trim().toLowerCase();
+      renderMainContent();
+    }
+
+    function onAuthTypeFilterChange(val) {
+      authTypeFilter = val;
+      renderMainContent();
+    }
+
+    function matchesAuthTypeFilter(room) {
+      if (authTypeFilter === 'all') return true;
+      return (room.custom_aweme_auth_type || '') === authTypeFilter;
+    }
+
+    function sortByAuthType(rooms) {
+      return rooms.slice().sort((a, b) => {
+        const aIsSelf = (a.custom_aweme_auth_type || '') === '自运营' ? 0 : 1;
+        const bIsSelf = (b.custom_aweme_auth_type || '') === '自运营' ? 0 : 1;
+        return aIsSelf - bIsSelf;
+      });
+    }
+
     function matchesRoomFilter(room) {
       if (!roomFilterKeyword) return true;
       const title = (room.custom_room_title || '').toLowerCase();
       const nick = (room.custom_aweme_nick_name || '').toLowerCase();
       const uid = (room.custom_aweme_unique_id || '').toLowerCase();
       return title.includes(roomFilterKeyword) || nick.includes(roomFilterKeyword) || uid.includes(roomFilterKeyword);
+    }
+
+    function matchesEndedFilter(room) {
+      if (!endedFilterKeyword) return true;
+      const title = (room.custom_room_title || '').toLowerCase();
+      const nick = (room.custom_aweme_nick_name || '').toLowerCase();
+      const uid = (room.custom_aweme_unique_id || '').toLowerCase();
+      return title.includes(endedFilterKeyword) || nick.includes(endedFilterKeyword) || uid.includes(endedFilterKeyword);
     }
 
     function withinEndedDays(room) {
@@ -1357,9 +1479,9 @@
 
       const showAccountTag = !selectedAdvId && allAccountsData.length > 1;
 
-      // 应用筛选
-      const filteredLive = allLiveRooms.filter(matchesRoomFilter);
-      const filteredEnded = allEndedRooms.filter(r => matchesRoomFilter(r) && withinEndedDays(r));
+      // 应用筛选 + 排序（自运营优先）
+      const filteredLive = sortByAuthType(allLiveRooms.filter(r => matchesRoomFilter(r) && matchesAuthTypeFilter(r)));
+      const filteredEnded = sortByAuthType(allEndedRooms.filter(r => matchesEndedFilter(r) && withinEndedDays(r) && matchesAuthTypeFilter(r)));
 
       document.getElementById('liveRooms').innerHTML = filteredLive.length > 0
         ? filteredLive.map(r => createCard(r, r._advId, showAccountTag ? r._accountName : null)).join('')
@@ -1372,8 +1494,12 @@
       // 保持筛选输入框的值
       const filterInput = document.getElementById('roomFilterInput');
       if (filterInput && filterInput.value !== roomFilterKeyword) filterInput.value = roomFilterKeyword;
+      const endedFilterInput = document.getElementById('endedFilterInput');
+      if (endedFilterInput && endedFilterInput.value !== endedFilterKeyword) endedFilterInput.value = endedFilterKeyword;
       const daysSelect = document.getElementById('endedDaysSelect');
       if (daysSelect) daysSelect.value = endedDaysFilter;
+      const authSelect = document.getElementById('authTypeSelect');
+      if (authSelect) authSelect.value = authTypeFilter;
 
       document.getElementById('updateTime').textContent = `最后更新: ${new Date().toLocaleTimeString()}`;
     }
@@ -1448,13 +1574,25 @@
               <div class="label">总团购支付</div>
             </div>
           </div>
-          <div class="section-title">
-            <span class="live-badge">LIVE</span>
-            正在直播
+          <div class="section-bar">
+            <div class="section-title">
+              <span class="live-badge">LIVE</span>
+              正在直播
+            </div>
+            <input class="room-filter-input" id="roomFilterInput" type="text" placeholder="搜索主播/直播间名称..." oninput="onRoomFilterChange(this.value)">
           </div>
           <div class="cards-grid" id="liveRooms"></div>
           <div style="margin-top: 40px;">
-            <div class="section-title">历史直播</div>
+            <div class="section-bar">
+              <div class="section-title">历史直播</div>
+              <input class="room-filter-input" id="endedFilterInput" type="text" placeholder="搜索主播/直播间名称..." oninput="onEndedFilterChange(this.value)">
+              <select class="date-filter-select" id="endedDaysSelect" onchange="onEndedDaysChange(this.value)">
+                <option value="3">最近3天</option>
+                <option value="7" selected>最近7天</option>
+                <option value="14">最近14天</option>
+                <option value="30">最近30天</option>
+              </select>
+            </div>
             <div class="cards-grid" id="endedRooms"></div>
           </div>
         `;
@@ -1473,6 +1611,9 @@
       const safeRoomId = escapeHtml(room.room_id);
       const safeAwemeId = escapeHtml(room.anchor_id || room.custom_aweme_unique_id);
       const accountTag = accountName ? `<div class="card-account-tag">${escapeHtml(accountName)}</div>` : '';
+      const authType = room.custom_aweme_auth_type || '';
+      const authTag = authType === '自运营' ? '<span class="card-auth-tag self">自运营</span>'
+        : authType === '未授权' ? '<span class="card-auth-tag unauth">未授权</span>' : '';
 
       return `
         <div class="card" onclick="openLiveBoard('${safeAdvId}', '${safeRoomId}', '${safeAwemeId}')">
@@ -1491,7 +1632,7 @@
           ? `<img class="anchor-avatar" src="${escapeHtml(room.custom_aweme_user_avatar)}" alt="头像" onerror="this.outerHTML='<div class=anchor-avatar-placeholder>${nickName[0]}</div>'">`
           : `<div class="anchor-avatar-placeholder">${nickName[0]}</div>`}
               <div class="anchor-info">
-                <div class="anchor-name">${nickName}</div>
+                <div class="anchor-name">${nickName}${authTag}</div>
                 <div class="anchor-id">@${uniqueId}</div>
               </div>
             </div>
@@ -1561,7 +1702,11 @@
       const btn = document.querySelector('.refresh-btn');
       if (btn) { btn.classList.add('refreshing'); btn.disabled = true; }
       try {
-        const targets = selectedAdvId ? [selectedAdvId] : accountsList.map(a => a.advId);
+        const targets = (selectedAdvId ? [selectedAdvId] : accountsList.map(a => a.advId))
+          .filter(id => {
+            const acc = accountsList.find(a => a.advId === id);
+            return !acc || acc.cookieStatus !== 'authorizing';
+          });
         await Promise.all(targets.map(id => window.api.refreshAccount(id)));
         await fetchData();
       } finally {
@@ -1699,12 +1844,22 @@
       document.getElementById('addModal').classList.add('show');
       document.getElementById('modalSearch').value = '';
       modalSearchKeyword = '';
+      modalAccountCate = 8;
+      document.getElementById('modalCateSelect').value = '8';
       selectedNewIds.clear();
-      document.getElementById('modalList').innerHTML = '<div class="modal-loading">正在从代理商后台获取账户列表...</div>';
       updateModalActions();
+      await loadModalAccounts();
+    }
 
+    async function loadModalAccounts() {
+      document.getElementById('modalList').innerHTML = '<div class="modal-loading">正在从代理商后台获取账户列表...</div>';
+      if (modalAccountCate !== 8) {
+        document.getElementById('modalList').innerHTML =
+          '<div class="modal-loading">暂未支持该业务线</div>';
+        return;
+      }
       try {
-        const data = await window.api.getAvailableAccounts();
+        const data = await window.api.getAvailableAccounts(modalAccountCate);
         if (data.success) {
           availableAccounts = data.data || [];
           renderModalList();
@@ -1833,6 +1988,13 @@
       renderModalList();
     });
 
+    document.getElementById('modalCateSelect').addEventListener('change', (e) => {
+      modalAccountCate = parseInt(e.target.value, 10);
+      selectedNewIds.clear();
+      updateModalActions();
+      loadModalAccounts();
+    });
+
     document.getElementById('modalConfirm').addEventListener('click', submitBatchAdd);
 
     // 监听主进程数据更新事件
@@ -1907,10 +2069,26 @@
 
     // 初始加载
     fetchData();
-    // 默认开启自动刷新
-    toggleAutoRefresh();
     // 版本信息
     initVersion();
+
+    async function exportLogs() {
+      try {
+        const result = await window.api.exportLogs();
+        if (result.success) return;
+        if (result.error) alert('导出失败: ' + result.error);
+      } catch (e) {
+        alert('导出失败');
+      }
+    }
+    // 暴露给 onclick
+    window.exportLogs = exportLogs;
+
+    // 点击外部关闭版本下拉
+    document.addEventListener('click', (e) => {
+      const vl = document.getElementById('versionLeft');
+      if (vl && !vl.contains(e.target)) vl.classList.remove('open');
+    });
   </script>
 </body>
 

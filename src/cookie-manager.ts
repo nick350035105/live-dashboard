@@ -1,5 +1,6 @@
 import { session as electronSession } from 'electron';
 import { db, CookieData } from './db';
+import { logger } from './logger';
 
 // 从 cookie 数组构建请求头中的 Cookie 字符串
 export function buildCookieString(cookies: CookieData[], domain: string): string {
@@ -31,14 +32,14 @@ export async function validateAgentCookies(cookies: CookieData[]): Promise<boole
     if (response.status === 200) {
       const data: any = await response.json();
       if (data && data.data && data.code !== 8) {
-        console.log('代理商 cookie 有效');
+        logger.info('代理商 cookie 有效');
         return true;
       }
     }
-    console.log('代理商 cookie 无效');
+    logger.info('代理商 cookie 无效');
     return false;
   } catch (error) {
-    console.error('验证代理商 cookie 失败:', error);
+    logger.error('验证代理商 cookie 失败:', error);
     return false;
   }
 }
@@ -59,14 +60,14 @@ export async function validateAccountCookies(advId: string, cookies: CookieData[
     if (response.status === 200) {
       const data: any = await response.json();
       if (data && (data.code === 0 || data.code === 'success' || data.status_code === 0) && data.data) {
-        console.log(`账户 ${advId} cookie 有效`);
+        logger.info(`账户 ${advId} cookie 有效`);
         return true;
       }
     }
-    console.log(`账户 ${advId} cookie 无效`);
+    logger.info(`账户 ${advId} cookie 无效`);
     return false;
   } catch (error) {
-    console.error(`验证账户 ${advId} cookie 失败:`, error);
+    logger.error(`验证账户 ${advId} cookie 失败:`, error);
     return false;
   }
 }
@@ -112,7 +113,7 @@ function fromElectronCookie(c: Electron.Cookie): CookieData {
 export async function loadAgentCookiesToSession(ses: Electron.Session): Promise<boolean> {
   const agent = db.getAgent();
   if (!agent || !agent.cookies || agent.cookies === '[]') {
-    console.log('数据库中无代理商 cookie');
+    logger.info('数据库中无代理商 cookie');
     return false;
   }
 
@@ -132,7 +133,7 @@ export async function loadAgentCookiesToSession(ses: Electron.Session): Promise<
     db.updateAgentStatus('valid');
     return true;
   } catch (error) {
-    console.error('加载代理商 cookie 失败:', error);
+    logger.error('加载代理商 cookie 失败:', error);
     return false;
   }
 }
@@ -144,7 +145,7 @@ export async function saveAgentCookiesFromSession(ses: Electron.Session) {
     .filter(c => (c.domain || '').includes('oceanengine.com') || (c.domain || '').includes('bytedance.com'))
     .map(fromElectronCookie);
   db.updateAgentCookies(agentCookies, 'valid');
-  console.log(`已保存 ${agentCookies.length} 条代理商 cookie`);
+  logger.info(`已保存 ${agentCookies.length} 条代理商 cookie`);
 }
 
 // 从 Electron session 保存账户 cookie
@@ -154,5 +155,5 @@ export async function saveAccountCookiesFromSession(advId: string, ses: Electron
     .filter(c => (c.domain || '').includes('chengzijianzhan.cn'))
     .map(fromElectronCookie);
   db.updateAccountCookies(advId, accountCookies, 'valid');
-  console.log(`已保存账户 ${advId} 的 ${accountCookies.length} 条 cookie`);
+  logger.info(`已保存账户 ${advId} 的 ${accountCookies.length} 条 cookie`);
 }

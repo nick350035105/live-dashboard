@@ -1,8 +1,10 @@
-import { ipcMain, BrowserWindow, session } from 'electron';
+import { ipcMain, BrowserWindow, session, dialog, shell } from 'electron';
+import { execSync } from 'child_process';
 import { db, CookieData } from './db';
 import { AuthManager } from './auth-manager';
 import { fetchAvailableAccounts, getRoomFunnelData } from './data-fetcher';
 import { getVersion, checkUpdate, doUpdate } from './updater';
+import { logger } from './logger';
 
 export function registerIpcHandlers(authManager: AuthManager) {
 
@@ -66,14 +68,14 @@ export function registerIpcHandlers(authManager: AuthManager) {
   });
 
   // 获取可用账户列表（从代理商后台）
-  ipcMain.handle('get-available-accounts', async () => {
+  ipcMain.handle('get-available-accounts', async (_event, accountCate?: number) => {
     try {
       const agent = db.getAgent();
       if (!agent?.cookies || agent.cookies === '[]') {
         throw new Error('无代理商 cookie，请先登录代理商后台');
       }
       const agentCookies: CookieData[] = JSON.parse(agent.cookies);
-      const list = await fetchAvailableAccounts(agentCookies);
+      const list = await fetchAvailableAccounts(agentCookies, accountCate);
       const addedIds = new Set(authManager.accounts.keys());
       const result = list.map(a => ({ ...a, added: addedIds.has(a.advId) }));
       return { success: true, data: result };
@@ -213,5 +215,29 @@ export function registerIpcHandlers(authManager: AuthManager) {
   // 执行更新
   ipcMain.handle('do-update', async () => {
     return await doUpdate();
+  });
+
+  // 导出日志
+  ipcMain.handle('export-logs', async () => {
+    try {
+      const logDir = logger.getLogDir();
+      const date = new Date().toISOString().slice(0, 10);
+      const { filePath, canceled } = await dialog.showSaveDialog({
+        defaultPath: `live-dashboard-logs-${date}.zip`,
+        filters: [{ name: 'ZIP', extensions: ['zip'] }]
+      });
+      if (canceled || !filePath) return { success: false, canceled: true };
+
+      if (process.platform === 'win32') {
+        execSync(`powershell -Command "Compress-Archive -Path '${logDir}\\*.log' -DestinationPath '${filePath}' -Force"`, { timeout: 30000 });
+      } else {
+        execSync(`cd "${logDir}" && zip -j "${filePath}" *.log`, { timeout: 30000 });
+      }
+      shell.showItemInFolder(filePath);
+      return { success: true };
+    } catch (error: any) {
+      logger.error('[导出日志] 失败:', error.message);
+      return { success: false, error: error.message };
+    }
   });
 }

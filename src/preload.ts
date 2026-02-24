@@ -5,7 +5,7 @@ contextBridge.exposeInMainWorld('api', {
   getAccounts: () => ipcRenderer.invoke('get-accounts'),
   addAccount: (advId: string, name?: string) => ipcRenderer.invoke('add-account', advId, name),
   removeAccount: (advId: string) => ipcRenderer.invoke('remove-account', advId),
-  getAvailableAccounts: () => ipcRenderer.invoke('get-available-accounts'),
+  getAvailableAccounts: (accountCate?: number) => ipcRenderer.invoke('get-available-accounts', accountCate),
   batchAddAccounts: (accounts: { advId: string; name?: string }[]) => ipcRenderer.invoke('batch-add-accounts', accounts),
   getAuthStatus: () => ipcRenderer.invoke('get-auth-status'),
   triggerAgentAuth: () => ipcRenderer.invoke('agent-auth'),
@@ -26,4 +26,5 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('update-progress', handler);
     return () => ipcRenderer.removeListener('update-progress', handler);
   },
+  exportLogs: () => ipcRenderer.invoke('export-logs'),
 });

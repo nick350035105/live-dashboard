@@ -2,6 +2,7 @@ import { app, BrowserWindow } from 'electron';
 import * as path from 'path';
 import { AuthManager } from './auth-manager';
 import { registerIpcHandlers } from './ipc-handlers';
+import { cleanOldLogs } from './logger';
 
 let mainWindow: BrowserWindow | null = null;
 const authManager = new AuthManager();
@@ -27,6 +28,9 @@ function createMainWindow() {
 }
 
 app.whenReady().then(async () => {
+  // 清理过期日志
+  cleanOldLogs();
+
   // 注册 IPC handlers
   registerIpcHandlers(authManager);
 
@@ -35,9 +39,6 @@ app.whenReady().then(async () => {
 
   // 初始化（加载 DB 账户、验证 cookie、拉取数据）
   await authManager.initialize();
-
-  // 启动定时刷新（60s）
-  authManager.startAutoRefresh(60000);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

@@ -1,5 +1,6 @@
 import { CookieData } from './db';
 import { buildCookieString } from './cookie-manager';
+import { logger } from './logger';
 
 export interface LiveRoomData {
   room_id: string;
@@ -12,6 +13,7 @@ export interface LiveRoomData {
   custom_aweme_nick_name: string;
   custom_aweme_unique_id: string;
   custom_aweme_user_avatar: string;
+  custom_aweme_auth_type: string;
   anchor_id: string;
   all_live_watch_cnt_td: number;
   all_ad_cost_amount_td: number;
@@ -39,7 +41,7 @@ function formatLocalTime(date: Date): string {
 }
 
 // 获取代理商下所有广告账户列表
-export async function fetchAvailableAccounts(agentCookies: CookieData[]): Promise<{ advId: string; advName: string; balance: number; status: string }[]> {
+export async function fetchAvailableAccounts(agentCookies: CookieData[], accountCate: number = 8): Promise<{ advId: string; advName: string; balance: number; status: string }[]> {
   const cookieStr = agentCookies
     .filter(c => c.domain.includes('oceanengine.com') || c.domain.includes('bytedance.com'))
     .map(c => `${c.name}=${c.value}`)
@@ -73,7 +75,7 @@ export async function fetchAvailableAccounts(agentCookies: CookieData[]): Promis
         'sec-ch-ua-platform': REQUEST_HEADERS['sec-ch-ua-platform'],
       },
       body: JSON.stringify({
-        filter: { advClassifyType: "2" },
+        filter: { advClassifyType: "2", accountCate },
         pagination: { page, pageSize },
         sorts: [{ field: "total_balance", order: "DESC" }],
         metricFields: ["total_balance"],
@@ -104,7 +106,7 @@ export async function fetchAvailableAccounts(agentCookies: CookieData[]): Promis
     page++;
   }
 
-  console.log(`获取到 ${allAccounts.length} 个可用账户`);
+  logger.info(`获取到 ${allAccounts.length} 个可用账户`);
   return allAccounts;
 }
 
@@ -138,6 +140,7 @@ export async function fetchLiveRooms(advId: string, cookies: CookieData[], histo
       custom_aweme_nick_name: d.custom_aweme_nick_name?.ValueStr || '',
       custom_aweme_unique_id: d.custom_aweme_unique_id?.ValueStr || '',
       custom_aweme_user_avatar: d.custom_aweme_user_avatar?.ValueStr || '',
+      custom_aweme_auth_type: d.custom_aweme_auth_type?.ValueStr || '',
       anchor_id: d.anchor_id?.ValueStr || '',
       all_live_watch_cnt_td: m.all_live_watch_cnt_td?.Value || 0,
       all_ad_cost_amount_td: m.all_ad_cost_amount_td?.Value || 0,
@@ -223,7 +226,7 @@ export async function fetchLiveRooms(advId: string, cookies: CookieData[], histo
 
     return { live: liveRooms, ended: endedRooms };
   } catch (error) {
-    console.error(`获取账户 ${advId} 数据失败:`, error);
+    logger.error(`获取账户 ${advId} 数据失败:`, error);
     return null;
   }
 }
@@ -276,7 +279,7 @@ export async function getRoomFunnelData(advId: string, roomId: string, anchorId:
       };
     }
   } catch (error) {
-    console.error('获取漏斗数据失败:', error);
+    logger.error('获取漏斗数据失败:', error);
   }
   return null;
 }

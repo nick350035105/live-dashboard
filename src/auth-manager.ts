@@ -6,6 +6,7 @@ import {
   loadAgentCookiesToSession, saveAgentCookiesFromSession, saveAccountCookiesFromSession
 } from './cookie-manager';
 import { fetchLiveRooms, LiveRoomData } from './data-fetcher';
+import { logger } from './logger';
 
 type CookieStatus = 'valid' | 'invalid' | 'authorizing' | 'unknown';
 
@@ -48,7 +49,7 @@ export class AuthManager {
   async startAgentAuth(): Promise<void> {
     if (this.isAgentAuthRunning) throw new Error('已有代理商授权流程在运行');
     this.isAgentAuthRunning = true;
-    console.log('[代理商授权] 启动浏览器，等待用户登录...');
+    logger.info('[代理商授权] 启动浏览器，等待用户登录...');
 
     try {
       const ses = session.fromPartition('persist:auth');
@@ -72,7 +73,7 @@ export class AuthManager {
         throw new Error('登录超时');
       }
 
-      console.log('[代理商授权] 授权成功，重新穿越所有监控账户...');
+      logger.info('[代理商授权] 授权成功，重新穿越所有监控账户...');
       for (const [advId, account] of Array.from(this.accounts.entries())) {
         account.cookieStatus = 'authorizing';
         this.authQueue.add(advId);
@@ -97,20 +98,20 @@ export class AuthManager {
       this.agentAuthWin = null;
     }
     this.isAgentAuthRunning = false;
-    console.log('[代理商授权] 已取消');
+    logger.info('[代理商授权] 已取消');
   }
 
   // 等待代理商登录（使用 BrowserWindow + executeJavaScript 替代 page.evaluate）
   async waitForAgentLogin(win: BrowserWindow, ses: Electron.Session): Promise<boolean> {
     const agentUrl = 'https://agent.oceanengine.com/login';
-    console.log(`\n请在浏览器中登录代理商后台...`);
-    console.log(`正在打开: ${agentUrl}\n`);
+    logger.info('请在浏览器中登录代理商后台...');
+    logger.info(`正在打开: ${agentUrl}`);
 
     await win.loadURL(agentUrl);
 
     const maxRetries = 30;
     for (let i = 1; i <= maxRetries; i++) {
-      console.log(`检查登录状态 (${i}/${maxRetries})...`);
+      logger.info(`检查登录状态 (${i}/${maxRetries})...`);
 
       try {
         const loginResult = await win.webContents.executeJavaScript(`
@@ -135,7 +136,7 @@ export class AuthManager {
         `);
 
         if (loginResult.success) {
-          console.log('代理商登录成功！');
+          logger.info('代理商登录成功！');
           await saveAgentCookiesFromSession(ses);
           return true;
         }
@@ -153,7 +154,7 @@ export class AuthManager {
 
   // 穿越到指定账户
   async traverseToAccount(advId: string, ses: Electron.Session): Promise<CookieData[]> {
-    console.log(`正在穿越到账户: ${advId}`);
+    logger.info(`[穿越] 开始穿越到账户: ${advId}`);
 
     const win = new BrowserWindow({
       width: 1200,
@@ -164,8 +165,10 @@ export class AuthManager {
 
     try {
       const listUrl = 'https://agent.oceanengine.com/admin/optimizeModule/dataSummary/bidding/bidding-adv';
+      logger.info(`[穿越] 正在加载页面: ${listUrl}`);
       await win.loadURL(listUrl);
       await new Promise(r => setTimeout(r, 3000));
+      logger.info(`[穿越] 页面加载完成，当前URL: ${win.webContents.getURL()}`);
 
       // 检查并切换到"客户账户"
       const selectValue = await win.webContents.executeJavaScript(`
@@ -174,8 +177,10 @@ export class AuthManager {
           return input ? input.value : '';
         })()
       `);
+      logger.info(`[穿越] 当前下拉选择值: "${selectValue}"`);
 
       if (selectValue !== '客户账户') {
+        logger.info('[穿越] 需要切换到"客户账户"，正在点击下拉框...');
         await win.webContents.executeJavaScript(`
           (() => {
             const select = document.querySelector('.byted-select-single');
@@ -191,9 +196,11 @@ export class AuthManager {
           })()
         `);
         await new Promise(r => setTimeout(r, 1000));
+        logger.info('[穿越] 已切换到"客户账户"');
       }
 
       // 搜索账户
+      logger.info(`[穿越] 正在搜索账户ID: ${advId}`);
       await win.webContents.executeJavaScript(`
         (() => {
           const input = document.querySelector('input[placeholder*="请填写名称或ID"]');
@@ -206,17 +213,19 @@ export class AuthManager {
         })()
       `);
       await new Promise(r => setTimeout(r, 3000));
+      logger.info('[穿越] 搜索完成，等待结果加载');
 
       // 查找穿越按钮并点击
-      const hasButton = await win.webContents.executeJavaScript(`
+      const buttonCount = await win.webContents.executeJavaScript(`
         (() => {
           const buttons = Array.from(document.querySelectorAll('.sys-text-btn'));
-          return buttons.length > 0;
+          return buttons.length;
         })()
       `);
+      logger.info(`[穿越] 找到 ${buttonCount} 个穿越按钮`);
 
-      if (!hasButton) {
-        console.error(`未找到账户: ${advId}`);
+      if (buttonCount === 0) {
+        logger.error(`[穿越] 未找到账户: ${advId}，页面URL: ${win.webContents.getURL()}`);
         return [];
       }
 
@@ -226,39 +235,46 @@ export class AuthManager {
       const newWinTimeout = setTimeout(() => newWinResolve!(null), 15000);
 
       win.webContents.setWindowOpenHandler(({ url }) => {
-        console.log(`[穿越] 拦截新窗口: ${url}`);
+        logger.info(`[穿越] 拦截新窗口请求，URL: ${url}`);
         return { action: 'allow', overrideBrowserWindowOptions: { show: false } };
       });
 
       win.webContents.on('did-create-window', (newWin) => {
         clearTimeout(newWinTimeout);
+        logger.info('[穿越] 新窗口已创建');
         newWinResolve!(newWin);
       });
 
+      logger.info('[穿越] 正在点击穿越按钮...');
       await win.webContents.executeJavaScript(`
         (() => {
           const buttons = Array.from(document.querySelectorAll('.sys-text-btn'));
           if (buttons.length > 0) buttons[0].click();
         })()
       `);
+      logger.info('[穿越] 穿越按钮已点击，等待新窗口...');
 
       const newWin = await newWinPromise;
 
       if (newWin) {
-        console.log(`[穿越] 新窗口已创建（隐藏）`);
+        logger.info('[穿越] 新窗口已创建（隐藏），等待加载...');
         await new Promise(r => setTimeout(r, 3000));
 
         // 在新窗口中访问目标页面以激活 cookie
         const liveUrl = `https://localads.chengzijianzhan.cn/lamp/pc/data2/liveCockpit?advid=${advId}`;
+        logger.info(`[穿越] 在新窗口中加载目标页面: ${liveUrl}`);
         await newWin.loadURL(liveUrl);
         await new Promise(r => setTimeout(r, 3000));
+        logger.info(`[穿越] 目标页面加载完成，URL: ${newWin.isDestroyed() ? '(窗口已销毁)' : newWin.webContents.getURL()}`);
 
         if (!newWin.isDestroyed()) newWin.close();
       } else {
-        console.log(`[穿越] 未检测到新窗口，尝试直接跳转`);
+        logger.info('[穿越] 未检测到新窗口（15s超时），尝试直接跳转');
         const liveUrl = `https://localads.chengzijianzhan.cn/lamp/pc/data2/liveCockpit?advid=${advId}`;
+        logger.info(`[穿越] 直接加载目标页面: ${liveUrl}`);
         await win.loadURL(liveUrl);
         await new Promise(r => setTimeout(r, 3000));
+        logger.info(`[穿越] 直接跳转完成，URL: ${win.webContents.getURL()}`);
       }
 
       // 保存 cookie
@@ -281,7 +297,11 @@ export class AuthManager {
                 : undefined,
         }));
 
+      logger.info(`[穿越] 账户 ${advId} 获取到 ${accountCookies.length} 条 cookie`);
       return accountCookies;
+    } catch (err) {
+      logger.error(`[穿越] 账户 ${advId} 穿越过程异常:`, err);
+      return [];
     } finally {
       if (!win.isDestroyed()) win.close();
     }
@@ -293,7 +313,7 @@ export class AuthManager {
     this.authQueue.add(advId);
     const account = this.accounts.get(advId);
     if (account) account.cookieStatus = 'authorizing';
-    console.log(`[授权队列] 添加 ${advId}，当前队列: ${Array.from(this.authQueue).join(', ')}`);
+    logger.info(`[授权队列] 添加 ${advId}，当前队列: ${Array.from(this.authQueue).join(', ')}`);
     this.processAuthQueue();
   }
 
@@ -304,7 +324,7 @@ export class AuthManager {
 
     const pendingIds = Array.from(this.authQueue);
     this.authProgress = { isRunning: true, current: null, done: 0, total: pendingIds.length };
-    console.log(`[授权] 开始处理 ${pendingIds.length} 个账户: ${pendingIds.join(', ')}`);
+    logger.info(`[授权] 开始处理 ${pendingIds.length} 个账户: ${pendingIds.join(', ')}`);
     this.notifyUpdate();
 
     const ses = session.fromPartition('persist:auth');
@@ -318,11 +338,11 @@ export class AuthManager {
       }
 
       if (agentCookiesValid) {
-        console.log('[授权] 代理商 cookie 有效，使用无头窗口');
+        logger.info('[授权] 代理商 cookie 有效，使用无头窗口');
         // 加载代理商 cookie 到 session
         await loadAgentCookiesToSession(ses);
       } else {
-        console.log('[授权] 代理商 cookie 无效，需要手动登录');
+        logger.info('[授权] 代理商 cookie 无效，需要手动登录');
         const win = new BrowserWindow({
           width: 1200,
           height: 800,
@@ -336,7 +356,7 @@ export class AuthManager {
         this.agentAuthWin = null;
 
         if (!loggedIn) {
-          console.error('[授权] 代理商登录超时');
+          logger.error('[授权] 代理商登录超时');
           for (const id of pendingIds) {
             this.authQueue.delete(id);
             const acc = this.accounts.get(id);
@@ -363,13 +383,13 @@ export class AuthManager {
               account.endedRooms = result.ended;
               account.lastFetchTime = Date.now();
             }
-            console.log(`[授权] 账户 ${advId} 授权成功`);
+            logger.info(`[授权] 账户 ${advId} 授权成功`);
           } else {
             if (account) account.cookieStatus = 'invalid';
-            console.error(`[授权] 账户 ${advId} 穿越失败`);
+            logger.error(`[授权] 账户 ${advId} 穿越失败`);
           }
         } catch (err) {
-          console.error(`[授权] 账户 ${advId} 异常:`, err);
+          logger.error(`[授权] 账户 ${advId} 异常:`, err);
           const account = this.accounts.get(advId);
           if (account) account.cookieStatus = 'invalid';
         }
@@ -378,7 +398,7 @@ export class AuthManager {
         this.notifyUpdate();
       }
     } catch (err) {
-      console.error('[授权] 流程异常:', err);
+      logger.error('[授权] 流程异常:', err);
       for (const id of pendingIds) {
         this.authQueue.delete(id);
         const acc = this.accounts.get(id);
@@ -408,7 +428,7 @@ export class AuthManager {
 
     if (record?.cookies && record.cookies !== '[]') {
       cookies = JSON.parse(record.cookies);
-      const isValid = await validateAccountCookies(advId, cookies);
+      const isValid = await validateAccountCookies(record.adv_id, cookies);
       if (isValid) {
         cookieStatus = 'valid';
       } else {
@@ -457,6 +477,11 @@ export class AuthManager {
     const account = this.accounts.get(advId);
     if (!account) throw new Error(`账户 ${advId} 未初始化`);
 
+    // 授权中的账户直接返回当前数据，不触发请求
+    if (account.cookieStatus === 'authorizing') {
+      return { live: account.liveRooms, ended: account.endedRooms };
+    }
+
     if (account.cookies.length > 0) {
       const result = await fetchLiveRooms(advId, account.cookies);
       if (result !== null) {
@@ -467,7 +492,7 @@ export class AuthManager {
         db.updateAccountStatus(advId, 'valid');
         return result;
       }
-      console.log(`账户 ${advId} cookie 失效，加入授权队列`);
+      logger.info(`账户 ${advId} cookie 失效，加入授权队列`);
       account.cookieStatus = 'invalid';
       account.cookies = [];
       db.updateAccountStatus(advId, 'invalid');
@@ -494,9 +519,9 @@ export class AuthManager {
               account.endedRooms = result.ended;
               account.lastFetchTime = Date.now();
               account.cookieStatus = 'valid';
-              console.log(`[${new Date().toLocaleTimeString()}] 账户 ${advId} 刷新完成，直播中 ${result.live.length} 个，历史 ${result.ended.length} 个`);
+              logger.info(`[${new Date().toLocaleTimeString()}] 账户 ${advId} 刷新完成，直播中 ${result.live.length} 个，历史 ${result.ended.length} 个`);
             } else {
-              console.log(`[${new Date().toLocaleTimeString()}] 账户 ${advId} cookie 失效，触发自动重授权`);
+              logger.info(`[${new Date().toLocaleTimeString()}] 账户 ${advId} cookie 失效，触发自动重授权`);
               account.cookieStatus = 'invalid';
               account.cookies = [];
               db.updateAccountStatus(advId, 'invalid');
@@ -504,7 +529,7 @@ export class AuthManager {
             }
           }
         } catch (error) {
-          console.error(`刷新账户 ${advId} 失败:`, error);
+          logger.error(`刷新账户 ${advId} 失败:`, error);
         } finally {
           this.refreshingAccounts.delete(advId);
         }
@@ -526,11 +551,11 @@ export class AuthManager {
         const isValid = await validateAccountCookies(record.adv_id, cookies);
         if (isValid) {
           cookieStatus = 'valid';
-          console.log(`账户 ${record.adv_id} cookie 有效`);
+          logger.info(`账户 ${record.adv_id} cookie 有效`);
         } else {
           cookies = [];
           cookieStatus = 'invalid';
-          console.log(`账户 ${record.adv_id} cookie 无效`);
+          logger.info(`账户 ${record.adv_id} cookie 无效`);
         }
       }
 
@@ -555,9 +580,9 @@ export class AuthManager {
             account.endedRooms = result.ended;
             account.lastFetchTime = Date.now();
           }
-          console.log(`账户 ${advId} 初始化完成，直播中 ${account.liveRooms.length} 个，历史 ${account.endedRooms.length} 个`);
+          logger.info(`账户 ${advId} 初始化完成，直播中 ${account.liveRooms.length} 个，历史 ${account.endedRooms.length} 个`);
         } catch (error) {
-          console.error(`账户 ${advId} 获取数据失败:`, error);
+          logger.error(`账户 ${advId} 获取数据失败:`, error);
         }
       }
     }

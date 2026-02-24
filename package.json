@@ -1,6 +1,6 @@
 {
   "name": "live-dashboard-electron",
-  "version": "1.4.3",
+  "version": "1.5.0",
   "description": "直播大屏监控 Electron 桌面客户端",
   "main": "dist/main.js",
   "scripts": {
@@ -39,6 +39,22 @@
         { "x": 130, "y": 220 },
         { "x": 410, "y": 220, "type": "link", "path": "/Applications" }
       ]
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico"
     },
     "asar": true,
     "npmRebuild": true

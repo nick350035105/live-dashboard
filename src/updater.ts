@@ -2,6 +2,7 @@ import { app, BrowserWindow, net } from 'electron';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
+import { logger } from './logger';
 
 const REPO_API = 'https://api.github.com/repos/nick350035105/live-dashboard/releases/latest';
 
@@ -29,7 +30,7 @@ export async function checkUpdate(): Promise<{ hasUpdate: boolean; latest: strin
     const hasUpdate = compareVersions(latest, current) > 0;
     return { hasUpdate, latest, current };
   } catch (error) {
-    console.error('检查更新失败:', error);
+    logger.error('检查更新失败:', error);
     throw error;
   }
 }
@@ -90,7 +91,7 @@ export async function doUpdate(): Promise<{ success: boolean; error?: string }> 
       return { success: true };
     }
 
-    // 打包模式：下载 dmg → 挂载 → 复制 .app → 重启
+    // 打包模式：下载安装包并自动安装
     sendProgress(0);
     const res = await net.fetch(REPO_API, {
       headers: { 'User-Agent': 'live-dashboard-electron' }
@@ -98,36 +99,53 @@ export async function doUpdate(): Promise<{ success: boolean; error?: string }> 
     if (!res.ok) throw new Error(`GitHub API ${res.status}`);
     const release: any = await res.json();
 
-    const dmgAsset = (release.assets || []).find((a: any) =>
-      a.name.endsWith('.dmg') && a.name.includes('arm64')
-    ) || (release.assets || []).find((a: any) => a.name.endsWith('.dmg'));
+    const isMac = process.platform === 'darwin';
+    const isWin = process.platform === 'win32';
 
-    if (!dmgAsset) {
+    // 查找对应平台的安装包
+    let asset: any;
+    if (isMac) {
+      asset = (release.assets || []).find((a: any) => a.name.endsWith('.dmg') && a.name.includes('arm64'))
+        || (release.assets || []).find((a: any) => a.name.endsWith('.dmg'));
+    } else if (isWin) {
+      asset = (release.assets || []).find((a: any) => a.name.endsWith('.exe'));
+    }
+
+    if (!asset) {
       throw new Error('未找到安装包，请手动从 GitHub Releases 下载');
     }
 
-    const dmgPath = path.join(app.getPath('temp'), dmgAsset.name);
+    const installerPath = path.join(app.getPath('temp'), asset.name);
 
-    console.log(`[更新] 下载 ${dmgAsset.name} (${(dmgAsset.size / 1024 / 1024).toFixed(1)}MB)...`);
-    await downloadFile(dmgAsset.browser_download_url, dmgPath);
-    console.log(`[更新] 下载完成: ${dmgPath}`);
+    logger.info(`[更新] 下载 ${asset.name} (${(asset.size / 1024 / 1024).toFixed(1)}MB)...`);
+    await downloadFile(asset.browser_download_url, installerPath);
+    logger.info(`[更新] 下载完成: ${installerPath}`);
 
-    // 自动安装
     sendProgress(100);
-    console.log('[更新] 开始自动安装...');
+    logger.info('[更新] 开始自动安装...');
+
+    if (isWin) {
+      // Windows: 运行 NSIS 安装程序（静默安装）后退出
+      const { spawn } = require('child_process');
+      spawn(installerPath, ['/S', '--force-run'], { detached: true, stdio: 'ignore' }).unref();
+      app.exit(0);
+      return { success: true };
+    }
+
+    // macOS: 挂载 dmg → 复制 .app → 重启
 
     const appBundlePath = process.execPath.replace(/\/Contents\/MacOS\/.+$/, '');
     const appName = path.basename(appBundlePath);
     const appsDir = path.dirname(appBundlePath);
 
     // 挂载 dmg
-    const mountOutput = execSync(`hdiutil attach "${dmgPath}" -nobrowse -noautoopen`, {
+    const mountOutput = execSync(`hdiutil attach "${installerPath}" -nobrowse -noautoopen`, {
       encoding: 'utf-8', timeout: 120000
     });
     const mountMatch = mountOutput.match(/\/Volumes\/.+$/m);
     if (!mountMatch) throw new Error('挂载 DMG 失败');
     const mountPoint = mountMatch[0].trim();
-    console.log(`[更新] DMG 挂载到: ${mountPoint}`);
+    logger.info(`[更新] DMG 挂载到: ${mountPoint}`);
 
     // 查找 .app
     const items = fs.readdirSync(mountPoint);
@@ -140,22 +158,22 @@ export async function doUpdate(): Promise<{ success: boolean; error?: string }> 
     const srcApp = path.join(mountPoint, appBundle);
     const destApp = path.join(appsDir, appName);
 
-    console.log(`[更新] 替换 ${destApp} ...`);
+    logger.info(`[更新] 替换 ${destApp} ...`);
     execSync(`rm -rf "${destApp}" && cp -R "${srcApp}" "${destApp}"`, {
       stdio: 'pipe', timeout: 120000
     });
 
     // 清理
     execSync(`hdiutil detach "${mountPoint}" -force`, { stdio: 'pipe', timeout: 30000 });
-    if (fs.existsSync(dmgPath)) fs.unlinkSync(dmgPath);
+    if (fs.existsSync(installerPath)) fs.unlinkSync(installerPath);
 
-    console.log('[更新] 安装完成，准备重启...');
+    logger.info('[更新] 安装完成，准备重启...');
     app.relaunch({ execPath: path.join(destApp, 'Contents', 'MacOS', appName.replace('.app', '')) });
     app.exit(0);
 
     return { success: true };
   } catch (error: any) {
-    console.error('[更新] 失败:', error.message);
+    logger.error('[更新] 失败:', error.message);
     return { success: false, error: error.message };
   }
 }
