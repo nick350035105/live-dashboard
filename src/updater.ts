@@ -4,7 +4,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { logger } from './logger';
 
-const REPO_API = 'https://api.github.com/repos/nick350035105/live-dashboard/releases/latest';
+const CNB_REPO = 'inngke/java/live-dashboard';
+const CNB_API = `https://api.cnb.cool/${CNB_REPO}/-/releases`;
+const CNB_TOKEN = 'bn4ExFJPK2Ky349dBZ1UbOFcANA';
 
 function getCurrentVersion(): string {
   return app.getVersion();
@@ -17,13 +19,17 @@ export async function getVersion(): Promise<{ version: string }> {
 export async function checkUpdate(): Promise<{ hasUpdate: boolean; latest: string; current: string }> {
   const current = getCurrentVersion();
   try {
-    const res = await net.fetch(REPO_API, {
-      headers: { 'User-Agent': 'live-dashboard-electron' }
+    const res = await net.fetch(`${CNB_API}/latest`, {
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${CNB_TOKEN}`,
+        'User-Agent': 'live-dashboard-electron',
+      }
     });
     if (res.status === 404) {
       return { hasUpdate: false, latest: current, current };
     }
-    if (!res.ok) throw new Error(`GitHub API ${res.status}`);
+    if (!res.ok) throw new Error(`CNB API ${res.status}`);
     const data: any = await res.json();
     const latest = (data.tag_name || '').replace(/^v/, '');
     if (!latest) return { hasUpdate: false, latest: current, current };
@@ -43,10 +49,13 @@ function sendProgress(percent: number) {
   }
 }
 
-// 使用 Electron net 模块下载（自动走系统代理）
 async function downloadFile(url: string, dest: string): Promise<void> {
   const res = await net.fetch(url, {
-    headers: { 'User-Agent': 'live-dashboard-electron' }
+    headers: {
+      'Authorization': `Bearer ${CNB_TOKEN}`,
+      'User-Agent': 'live-dashboard-electron',
+    },
+    redirect: 'follow'
   });
   if (!res.ok) throw new Error(`下载失败: HTTP ${res.status}`);
 
@@ -91,18 +100,21 @@ export async function doUpdate(): Promise<{ success: boolean; error?: string }> 
       return { success: true };
     }
 
-    // 打包模式：下载安装包并自动安装
+    // 打包模式：从 CNB Release 获取安装包
     sendProgress(0);
-    const res = await net.fetch(REPO_API, {
-      headers: { 'User-Agent': 'live-dashboard-electron' }
+    const res = await net.fetch(`${CNB_API}/latest`, {
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${CNB_TOKEN}`,
+        'User-Agent': 'live-dashboard-electron',
+      }
     });
-    if (!res.ok) throw new Error(`GitHub API ${res.status}`);
+    if (!res.ok) throw new Error(`CNB API ${res.status}`);
     const release: any = await res.json();
 
     const isMac = process.platform === 'darwin';
     const isWin = process.platform === 'win32';
 
-    // 查找对应平台的安装包
     let asset: any;
     if (isMac) {
       asset = (release.assets || []).find((a: any) => a.name.endsWith('.dmg') && a.name.includes('arm64'))
@@ -112,20 +124,21 @@ export async function doUpdate(): Promise<{ success: boolean; error?: string }> 
     }
 
     if (!asset) {
-      throw new Error('未找到安装包，请手动从 GitHub Releases 下载');
+      throw new Error('未找到安装包，请联系管理员');
     }
 
+    // CNB 下载使用 API 域名 + 认证 token，自动 302 重定向到 asset CDN
+    const downloadUrl = asset.url || asset.brower_download_url;
     const installerPath = path.join(app.getPath('temp'), asset.name);
 
     logger.info(`[更新] 下载 ${asset.name} (${(asset.size / 1024 / 1024).toFixed(1)}MB)...`);
-    await downloadFile(asset.browser_download_url, installerPath);
+    await downloadFile(downloadUrl, installerPath);
     logger.info(`[更新] 下载完成: ${installerPath}`);
 
     sendProgress(100);
     logger.info('[更新] 开始自动安装...');
 
     if (isWin) {
-      // Windows: 创建批处理脚本 → 等待当前进程退出 → 静默安装 → 启动新版本
       const { spawn } = require('child_process');
       const installDir = path.dirname(process.execPath);
       const appExeName = path.basename(process.execPath);
@@ -144,12 +157,10 @@ export async function doUpdate(): Promise<{ success: boolean; error?: string }> 
     }
 
     // macOS: 挂载 dmg → 复制 .app → 重启
-
     const appBundlePath = process.execPath.replace(/\/Contents\/MacOS\/.+$/, '');
     const appName = path.basename(appBundlePath);
     const appsDir = path.dirname(appBundlePath);
 
-    // 挂载 dmg
     const mountOutput = execSync(`hdiutil attach "${installerPath}" -nobrowse -noautoopen`, {
       encoding: 'utf-8', timeout: 120000
     });
@@ -158,7 +169,6 @@ export async function doUpdate(): Promise<{ success: boolean; error?: string }> 
     const mountPoint = mountMatch[0].trim();
     logger.info(`[更新] DMG 挂载到: ${mountPoint}`);
 
-    // 查找 .app
     const items = fs.readdirSync(mountPoint);
     const appBundle = items.find(i => i.endsWith('.app'));
     if (!appBundle) {
@@ -174,7 +184,6 @@ export async function doUpdate(): Promise<{ success: boolean; error?: string }> 
       stdio: 'pipe', timeout: 120000
     });
 
-    // 清理
     execSync(`hdiutil detach "${mountPoint}" -force`, { stdio: 'pipe', timeout: 30000 });
     if (fs.existsSync(installerPath)) fs.unlinkSync(installerPath);
 
