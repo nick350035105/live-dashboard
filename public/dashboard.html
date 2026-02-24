@@ -866,11 +866,6 @@
       color: #bb8fce;
     }
 
-    .card-promo-tag.std {
-      background: rgba(0, 212, 255, 0.2);
-      color: #00d4ff;
-    }
-
     .card-body {
       padding: 8px 10px;
     }
@@ -1240,10 +1235,9 @@
             <option value="未授权">未授权</option>
           </select>
           <select class="date-filter-select" id="promoTypeSelect" onchange="onPromoTypeFilterChange(this.value)">
-            <option value="all" selected>全部推广</option>
-            <option value="none">无推广</option>
-            <option value="std">标准推广</option>
+            <option value="all" selected>全部</option>
             <option value="roi2">全域推广</option>
+            <option value="non_roi2">非全域</option>
           </select>
           <div class="update-time" id="updateTime">更新中...</div>
         </div>
@@ -1311,8 +1305,8 @@
     let roomFilterKeyword = '';
     let endedFilterKeyword = '';
     let endedDaysFilter = 7;
-    let authTypeFilter = '自运营'; // 'all' | '自运营' | '未授权'
-    let promoTypeFilter = 'all'; // 'all' | 'none' | 'std' | 'roi2'
+    let authTypeFilter = 'all'; // 'all' | '自运营' | '未授权'
+    let promoTypeFilter = 'all'; // 'all' | 'roi2' | 'non_roi2'
     // 弹窗状态
     let availableAccounts = [];
     let selectedNewIds = new Set();
@@ -1425,12 +1419,6 @@
       renderMainContent();
     }
 
-    function getPromoType(room) {
-      if ((room.custom_has_roi2_ad || '') === 'login_adv') return 'roi2';
-      if (room.all_ad_cost_amount_td > 0) return 'std';
-      return 'none';
-    }
-
     function matchesAuthTypeFilter(room) {
       if (authTypeFilter === 'all') return true;
       return (room.custom_aweme_auth_type || '') === authTypeFilter;
@@ -1438,7 +1426,8 @@
 
     function matchesPromoTypeFilter(room) {
       if (promoTypeFilter === 'all') return true;
-      return getPromoType(room) === promoTypeFilter;
+      const isRoi2 = (room.custom_has_roi2_ad || '') === 'login_adv';
+      return promoTypeFilter === 'roi2' ? isRoi2 : !isRoi2;
     }
 
     function sortByAuthType(rooms) {
@@ -1658,9 +1647,7 @@
       const authType = room.custom_aweme_auth_type || '';
       const authTag = authType === '自运营' ? '<span class="card-auth-tag self">自运营</span>'
         : authType === '未授权' ? '<span class="card-auth-tag unauth">未授权</span>' : '';
-      const promo = getPromoType(room);
-      const promoTag = promo === 'roi2' ? '<span class="card-promo-tag roi2">全域</span>'
-        : promo === 'std' ? '<span class="card-promo-tag std">标准</span>' : '';
+      const promoTag = (room.custom_has_roi2_ad || '') === 'login_adv' ? '<span class="card-promo-tag roi2">全域</span>' : '';
 
       return `
         <div class="card" onclick="openLiveBoard('${safeAdvId}', '${safeRoomId}', '${safeAwemeId}')">
