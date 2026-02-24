@@ -1,6 +1,6 @@
 {
   "name": "live-dashboard-electron",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "直播大屏监控 Electron 桌面客户端",
   "main": "dist/main.js",
   "scripts": {

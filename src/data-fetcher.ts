@@ -14,6 +14,7 @@ export interface LiveRoomData {
   custom_aweme_unique_id: string;
   custom_aweme_user_avatar: string;
   custom_aweme_auth_type: string;
+  custom_has_roi2_ad: string;
   anchor_id: string;
   all_live_watch_cnt_td: number;
   all_ad_cost_amount_td: number;
@@ -141,6 +142,7 @@ export async function fetchLiveRooms(advId: string, cookies: CookieData[], histo
       custom_aweme_unique_id: d.custom_aweme_unique_id?.ValueStr || '',
       custom_aweme_user_avatar: d.custom_aweme_user_avatar?.ValueStr || '',
       custom_aweme_auth_type: d.custom_aweme_auth_type?.ValueStr || '',
+      custom_has_roi2_ad: d.custom_has_roi2_ad?.ValueStr || d.custom_has_roi2_ad?.Value || '',
       anchor_id: d.anchor_id?.ValueStr || '',
       all_live_watch_cnt_td: m.all_live_watch_cnt_td?.Value || 0,
       all_ad_cost_amount_td: m.all_ad_cost_amount_td?.Value || 0,

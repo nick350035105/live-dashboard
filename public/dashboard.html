@@ -852,6 +852,25 @@
       color: #e74c3c;
     }
 
+    .card-promo-tag {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      margin-left: 4px;
+      vertical-align: middle;
+    }
+
+    .card-promo-tag.roi2 {
+      background: rgba(155, 89, 182, 0.2);
+      color: #bb8fce;
+    }
+
+    .card-promo-tag.std {
+      background: rgba(0, 212, 255, 0.2);
+      color: #00d4ff;
+    }
+
     .card-body {
       padding: 8px 10px;
     }
@@ -1220,6 +1239,12 @@
             <option value="自运营" selected>自运营</option>
             <option value="未授权">未授权</option>
           </select>
+          <select class="date-filter-select" id="promoTypeSelect" onchange="onPromoTypeFilterChange(this.value)">
+            <option value="all" selected>全部推广</option>
+            <option value="none">无推广</option>
+            <option value="std">标准推广</option>
+            <option value="roi2">全域推广</option>
+          </select>
           <div class="update-time" id="updateTime">更新中...</div>
         </div>
       </div>
@@ -1287,6 +1312,7 @@
     let endedFilterKeyword = '';
     let endedDaysFilter = 7;
     let authTypeFilter = '自运营'; // 'all' | '自运营' | '未授权'
+    let promoTypeFilter = 'all'; // 'all' | 'none' | 'std' | 'roi2'
     // 弹窗状态
     let availableAccounts = [];
     let selectedNewIds = new Set();
@@ -1394,9 +1420,25 @@
       renderMainContent();
     }
 
+    function onPromoTypeFilterChange(val) {
+      promoTypeFilter = val;
+      renderMainContent();
+    }
+
+    function getPromoType(room) {
+      if ((room.custom_has_roi2_ad || '') === 'login_adv') return 'roi2';
+      if (room.all_ad_cost_amount_td > 0) return 'std';
+      return 'none';
+    }
+
     function matchesAuthTypeFilter(room) {
       if (authTypeFilter === 'all') return true;
       return (room.custom_aweme_auth_type || '') === authTypeFilter;
+    }
+
+    function matchesPromoTypeFilter(room) {
+      if (promoTypeFilter === 'all') return true;
+      return getPromoType(room) === promoTypeFilter;
     }
 
     function sortByAuthType(rooms) {
@@ -1480,8 +1522,8 @@
       const showAccountTag = !selectedAdvId && allAccountsData.length > 1;
 
       // 应用筛选 + 排序（自运营优先）
-      const filteredLive = sortByAuthType(allLiveRooms.filter(r => matchesRoomFilter(r) && matchesAuthTypeFilter(r)));
-      const filteredEnded = sortByAuthType(allEndedRooms.filter(r => matchesEndedFilter(r) && withinEndedDays(r) && matchesAuthTypeFilter(r)));
+      const filteredLive = sortByAuthType(allLiveRooms.filter(r => matchesRoomFilter(r) && matchesAuthTypeFilter(r) && matchesPromoTypeFilter(r)));
+      const filteredEnded = sortByAuthType(allEndedRooms.filter(r => matchesEndedFilter(r) && withinEndedDays(r) && matchesAuthTypeFilter(r) && matchesPromoTypeFilter(r)));
 
       document.getElementById('liveRooms').innerHTML = filteredLive.length > 0
         ? filteredLive.map(r => createCard(r, r._advId, showAccountTag ? r._accountName : null)).join('')
@@ -1500,6 +1542,8 @@
       if (daysSelect) daysSelect.value = endedDaysFilter;
       const authSelect = document.getElementById('authTypeSelect');
       if (authSelect) authSelect.value = authTypeFilter;
+      const promoSelect = document.getElementById('promoTypeSelect');
+      if (promoSelect) promoSelect.value = promoTypeFilter;
 
       document.getElementById('updateTime').textContent = `最后更新: ${new Date().toLocaleTimeString()}`;
     }
@@ -1614,6 +1658,9 @@
       const authType = room.custom_aweme_auth_type || '';
       const authTag = authType === '自运营' ? '<span class="card-auth-tag self">自运营</span>'
         : authType === '未授权' ? '<span class="card-auth-tag unauth">未授权</span>' : '';
+      const promo = getPromoType(room);
+      const promoTag = promo === 'roi2' ? '<span class="card-promo-tag roi2">全域</span>'
+        : promo === 'std' ? '<span class="card-promo-tag std">标准</span>' : '';
 
       return `
         <div class="card" onclick="openLiveBoard('${safeAdvId}', '${safeRoomId}', '${safeAwemeId}')">
@@ -1632,7 +1679,7 @@
           ? `<img class="anchor-avatar" src="${escapeHtml(room.custom_aweme_user_avatar)}" alt="头像" onerror="this.outerHTML='<div class=anchor-avatar-placeholder>${nickName[0]}</div>'">`
           : `<div class="anchor-avatar-placeholder">${nickName[0]}</div>`}
               <div class="anchor-info">
-                <div class="anchor-name">${nickName}${authTag}</div>
+                <div class="anchor-name">${nickName}${authTag}${promoTag}</div>
                 <div class="anchor-id">@${uniqueId}</div>
               </div>
             </div>
