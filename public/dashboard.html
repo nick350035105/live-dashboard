@@ -866,6 +866,36 @@
       color: #bb8fce;
     }
 
+    .card-footer-btn-roi2 {
+      padding: 4px 12px;
+      background: linear-gradient(135deg, #fff, #00d4ff);
+      border: none;
+      border-radius: 6px;
+      color: #0b0f19;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 2px 6px rgba(0, 212, 255, 0.3);
+    }
+
+    .card-footer-btn-roi2:hover {
+      background: linear-gradient(135deg, #fff, #33dfff);
+      box-shadow: 0 3px 10px rgba(0, 212, 255, 0.5);
+      transform: translateY(-1px);
+    }
+
+    .card-roi {
+      position: absolute;
+      bottom: 8px;
+      left: 8px;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.9);
+    }
+
     .card-body {
       padding: 8px 10px;
     }
@@ -1647,7 +1677,11 @@
       const authType = room.custom_aweme_auth_type || '';
       const authTag = authType === '自运营' ? '<span class="card-auth-tag self">自运营</span>'
         : authType === '未授权' ? '<span class="card-auth-tag unauth">未授权</span>' : '';
-      const promoTag = (room.custom_has_roi2_ad || '') === 'login_adv' ? '<span class="card-promo-tag roi2">全域</span>' : '';
+      const isRoi2 = (room.custom_has_roi2_ad || '') === 'login_adv';
+      const promoTag = isRoi2 ? '<span class="card-promo-tag roi2">全域</span>' : '';
+      const roi2Btn = (isRoi2 && isLive)
+        ? `<button class="card-footer-btn-roi2" onclick="event.stopPropagation(); openRoi2Promo('${safeAdvId}', '${uniqueId}')">投放</button>`
+        : '';
 
       return `
         <div class="card" onclick="openLiveBoard('${safeAdvId}', '${safeRoomId}', '${safeAwemeId}')">
@@ -1657,6 +1691,7 @@
           : '<div class="card-cover-placeholder">&#127909;</div>'}
             <div class="card-status ${isLive ? 'live' : 'ended'}">${isLive ? '直播中' : '已结束'}</div>
             ${accountTag}
+            <div class="card-roi">ROI: ${roi}</div>
             <div class="card-duration">${formatDuration(room.custom_room_duration)}</div>
           </div>
           <div class="card-body">
@@ -1687,7 +1722,7 @@
           </div>
           <div class="card-footer">
             <span>开播: ${room.custom_room_start_time || '-'}</span>
-            <span>ROI: ${roi}</span>
+            ${roi2Btn}
           </div>
         </div>
       `;
@@ -1696,6 +1731,11 @@
     // 打开大屏：通过 IPC 调用主进程打开新 BrowserWindow
     function openLiveBoard(advId, roomId, awemeId) {
       window.api.openLiveBoard(advId, roomId, awemeId);
+    }
+
+    // 打开全域投放页面
+    function openRoi2Promo(advId, awemeUniqueId) {
+      window.api.openRoi2Promo(advId, awemeUniqueId);
     }
 
     // === 自动刷新 ===

@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('api', {
   refreshAccount: (advId: string) => ipcRenderer.invoke('refresh-account', advId),
   getRoomFunnel: (advId: string, roomId: string, anchorId: string) => ipcRenderer.invoke('get-room-funnel', advId, roomId, anchorId),
   openLiveBoard: (advId: string, roomId: string, awemeId: string) => ipcRenderer.invoke('open-live-board', advId, roomId, awemeId),
+  openRoi2Promo: (advId: string, awemeUniqueId: string) => ipcRenderer.invoke('open-roi2-promo', advId, awemeUniqueId),
   getVersion: () => ipcRenderer.invoke('get-version'),
   checkUpdate: () => ipcRenderer.invoke('check-update'),
   doUpdate: () => ipcRenderer.invoke('do-update'),

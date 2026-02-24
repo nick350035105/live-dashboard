@@ -202,6 +202,60 @@ export function registerIpcHandlers(authManager: AuthManager) {
     }
   });
 
+  // 打开全域投放页面
+  ipcMain.handle('open-roi2-promo', async (_event, advId: string, awemeUniqueId: string) => {
+    try {
+      const ses = session.fromPartition('persist:auth');
+
+      const win = new BrowserWindow({
+        width: 1368,
+        height: 855,
+        webPreferences: { session: ses },
+      });
+
+      const url = `https://localads.chengzijianzhan.cn/lamp/pc/promotion/roi2?from=/lamp/pc/home&advid=${advId}&promotionType=3`;
+      await win.loadURL(url);
+
+      // 自动按抖音号筛选
+      await win.webContents.executeJavaScript(`
+        (async () => {
+          const sleep = ms => new Promise(r => setTimeout(r, ms));
+          const waitFor = async (sel, timeout = 8000) => {
+            const start = Date.now();
+            while (Date.now() - start < timeout) {
+              const el = document.querySelector(sel);
+              if (el) return el;
+              await sleep(200);
+            }
+            return null;
+          };
+
+          const dropdown = await waitFor('.fake-select[data-qa="pc_promotion_filter_aweme"]');
+          if (!dropdown) return;
+          dropdown.click();
+          await sleep(200);
+
+          const input = await waitFor('.ovui-input[placeholder*="抖音号"]');
+          if (!input) return;
+          const nativeSet = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+          nativeSet.call(input, ${JSON.stringify(awemeUniqueId)});
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+
+          // 等待搜索结果刷新后点击第一项
+          await sleep(500);
+          const radio = document.querySelector('.ovui-radio');
+          if (radio) {
+            radio.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+          }
+        })();
+      `);
+
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+
   // 版本信息
   ipcMain.handle('get-version', async () => {
     return await getVersion();
