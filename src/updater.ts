@@ -125,9 +125,20 @@ export async function doUpdate(): Promise<{ success: boolean; error?: string }> 
     logger.info('[更新] 开始自动安装...');
 
     if (isWin) {
-      // Windows: 运行 NSIS 安装程序（静默安装）后退出
+      // Windows: 创建批处理脚本 → 等待当前进程退出 → 静默安装 → 启动新版本
       const { spawn } = require('child_process');
-      spawn(installerPath, ['/S', '--force-run'], { detached: true, stdio: 'ignore' }).unref();
+      const installDir = path.dirname(process.execPath);
+      const appExeName = path.basename(process.execPath);
+      const batPath = path.join(app.getPath('temp'), 'live-dashboard-update.bat');
+      const batContent = [
+        '@echo off',
+        'timeout /t 3 /nobreak >nul',
+        `start /wait "" "${installerPath}" /S /D=${installDir}`,
+        `start "" "${path.join(installDir, appExeName)}"`,
+        `del "%~f0"`,
+      ].join('\r\n');
+      fs.writeFileSync(batPath, batContent);
+      spawn('cmd.exe', ['/c', batPath], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
       app.exit(0);
       return { success: true };
     }
